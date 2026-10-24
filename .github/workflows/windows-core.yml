@@ -28,6 +28,89 @@ permissions:
   contents: read
 
 jobs:
+  linux-reference-genesis:
+    name: Released Linux v0.1.0 mainnet genesis reference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Install release runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-chrono1.83.0t64 libboost-filesystem1.83.0 libboost-program-options1.83.0 libboost-thread1.83.0 libboost-serialization1.83.0 libhidapi-libusb0 libunbound8
+      - name: Verify and unpack published mainnet Linux binary (immutable reference)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p linux-reference logs
+          curl --fail --location --retry 3 \
+            -o linux-reference/vmrx-release.tar.gz \
+            https://github.com/ati1993de/vmrx-core/releases/download/v0.1.0/VMRX-Core-linux-x86_64-v0.1.0.tar.gz
+          echo "399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f  linux-reference/vmrx-release.tar.gz" | sha256sum -c -
+          tar -xzf linux-reference/vmrx-release.tar.gz -C linux-reference
+          find linux-reference -type f -name monerod -print
+      - name: Run reference Linux daemon offline and capture genesis blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, subprocess, tempfile, time, urllib.request
+          binaries = list(pathlib.Path('linux-reference').rglob('monerod'))
+          if len(binaries) != 1:
+              raise SystemExit(f'Expected exactly one Linux monerod, found {len(binaries)}')
+          exe = binaries[0].resolve()
+          exe.chmod(exe.stat().st_mode | 0o111)
+          print('Linux reference monerod SHA256:', hashlib.sha256(exe.read_bytes()).hexdigest(), flush=True)
+          data_dir = pathlib.Path(tempfile.mkdtemp(prefix='vmrx-ref-'))
+          out = pathlib.Path('logs')
+          out.mkdir(exist_ok=True)
+          args = [str(exe), '--non-interactive', '--offline', '--data-dir', str(data_dir),
+                  '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', '29780',
+                  '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29781',
+                  '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
+                  '--check-updates', 'disabled', '--log-file', str(out / 'linux-node.log')]
+          p = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+          def rpc(method, args):
+              body=json.dumps({'jsonrpc':'2.0','id':'0','method':method,'params':args}).encode()
+              req=urllib.request.Request('http://127.0.0.1:29781/json_rpc',data=body,headers={'Content-Type':'application/json'})
+              return json.load(urllib.request.urlopen(req,timeout=3))
+          try:
+              for i in range(45):
+                  if p.poll() is not None:
+                      raise RuntimeError('Linux reference node exited: '+str(p.returncode))
+                  time.sleep(2)
+                  try:
+                      result=rpc('get_block_header_by_height',{'height':0})
+                      if result.get('result',{}).get('block_header'):break
+                  except Exception:pass
+              else:raise RuntimeError('Linux reference node RPC not ready')
+              raw=rpc('get_block',{'height':0})
+              report={'source':'published VMRX Core v0.1.0 Linux x86_64, SHA256 verified',
+                      'release_sha256':'399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f',
+                      'header':result['result']['block_header'],
+                      'blob':raw.get('result',{}).get('blob'),
+                      'block_json':raw.get('result',{}).get('json')}
+              (out/'linux-reference-genesis.json').write_text(json.dumps(report,indent=2))
+              observed=report['header']['hash']
+              print('LINUX RELEASE GENESIS:',observed,flush=True)
+              print('LINUX RELEASE HEADER:',json.dumps(report['header'],sort_keys=True),flush=True)
+              expected='405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'
+              if observed!=expected:raise RuntimeError('Linux v0.1.0 binary does not match documented mainnet: '+observed)
+          finally:
+              p.terminate()
+              try:p.wait(timeout=8)
+              except subprocess.TimeoutExpired:p.kill()
+              err=p.stderr.read().decode(errors='replace') if p.stderr else ''
+              (out/'linux-stderr.log').write_text(err[-30000:])
+          PY
+      - name: Preserve real Linux genesis reference for binary-to-binary comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-linux-v010-genesis-reference
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
   windows-core:
     name: Native Windows Core (MSYS2 / MinGW64)
     runs-on: windows-2022
