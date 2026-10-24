@@ -90,7 +90,27 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 2
         run: |
           set -euo pipefail
-          make release-static-win64 -j2
+          mkdir -p buildlogs
+          make release-static-win64-daemon -j2 2>&1 | tee buildlogs/windows-daemon-build.log
+
+      - name: Show compilation errors on failure
+        if: failure()
+        run: |
+          if [ -f buildlogs/windows-daemon-build.log ]; then
+            echo "=== Last 120 native Windows build log lines ==="
+            tail -n 120 buildlogs/windows-daemon-build.log
+            echo "=== Compiler errors ==="
+            grep -En 'fatal error:| error:|CMake Error|undefined reference|make.*Error' buildlogs/windows-daemon-build.log | tail -n 60 || true
+          fi
+
+      - name: Preserve Windows compilation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-core-buildlogs
+          path: buildlogs/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Collect Windows executables and DLL dependencies
         run: |
