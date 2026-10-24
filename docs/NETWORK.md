@@ -24,3 +24,11 @@ Mainnet block interval target: **120 s**. Algorithm: **RandomX**, HF16. Consensu
 - Never configure Monero seed nodes or Monero peer lists on this separate network.
 - Only use peer addresses confirmed to be serving matching VMRX genesis and consensus data.
 - Do not confuse a node's `synchronized: true` with an independently audited consensus implementation.
+
+
+## VMRX bootstrap candidate nodes (2026-10-24)
+
+- `31.70.81.5:29780` — Windrose mainnet node; a Windows VMRX client has successfully handshaked and received a height announcement, but rejected subsequent block sync because of the historic block-1 premine consensus discrepancy.
+- `217.154.93.20:29780` — second operator-provided candidate. P2P daemon presence and VMRX network/chain compatibility are **not yet independently checked**; do not count it as a verified seed until a real handshake and matching block hashes succeed.
+
+These are **VMRX-only P2P port 29780**, not VMESH P2P port 29666, and never Monero peer addresses. Both candidates are attempted non-exclusively on mainnet; third-party peers must still pass real chain identification, PoW and block validation. Restrict daemon RPC 29781 to localhost, and do not reset existing Windrose blockchain state when upgrading.
