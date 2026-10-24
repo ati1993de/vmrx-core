@@ -103,15 +103,6 @@ jobs:
             grep -En 'fatal error:| error:|CMake Error|undefined reference|make.*Error' buildlogs/windows-daemon-build.log | tail -n 60 || true
           fi
 
-      - name: Preserve Windows compilation diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vmrx-windows-core-buildlogs
-          path: buildlogs/
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Collect Windows executables and DLL dependencies
         run: |
           set -euo pipefail
@@ -182,11 +173,47 @@ jobs:
             $res = Invoke-RestMethod -Uri "http://127.0.0.1:29781/json_rpc" -Method POST -ContentType "application/json" -Body $body
             $expected = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
             $actual = [string]$res.result.block_header.hash
-            if ($actual -ne $expected) { throw "GENESIS MISMATCH: expected $expected, got $actual" }
+            New-Item -ItemType Directory -Force -Path "buildlogs" | Out-Null
+            $diagnostic = @{
+              expected_genesis = $expected
+              actual_genesis = $actual
+              is_match = ($actual -eq $expected)
+              daemon_sha256 = (Get-FileHash -Path $daemon -Algorithm SHA256).Hash
+              source_commit = (& git rev-parse HEAD)
+              mainnet_config_nonce = 22093001
+              rpc_get_info = $info
+              rpc_genesis_header = $res.result.block_header
+            }
+            try {
+              $rawRequest = @{jsonrpc="2.0";id="0";method="get_block";params=@{height=0}} | ConvertTo-Json -Depth 5
+              $rawResult = Invoke-RestMethod -Uri "http://127.0.0.1:29781/json_rpc" -Method POST -ContentType "application/json" -Body $rawRequest
+              $diagnostic.rpc_genesis_block_blob = [string]$rawResult.result.blob
+              $diagnostic.rpc_genesis_block_json = [string]$rawResult.result.json
+            } catch {
+              $diagnostic.rpc_get_block_error = [string]$_
+            }
+            $diagnostic | ConvertTo-Json -Depth 12 | Set-Content "buildlogs/windows-genesis.json" -Encoding utf8
+            Write-Host ("VMRX Windows genesis: major={0} minor={1} nonce={2} hash={3}" -f $res.result.block_header.major_version,$res.result.block_header.minor_version,$res.result.block_header.nonce,$actual)
+            if ($actual -ne $expected) {
+              throw "VMRX CHAIN INCOMPATIBILITY: expected $expected, got $actual. Review buildlogs/windows-genesis.json (full genesis block blob and header) against the existing Linux mainnet. Never change the expected hash without proving a matching consensus chain."
+            }
             Write-Host "PASS: Native Windows VMRX daemon starts and reports correct genesis $actual"
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            if (Test-Path (Join-Path $dataDir "windows-smoke.log")) {
+              New-Item -ItemType Directory -Force -Path "buildlogs" | Out-Null
+              Copy-Item (Join-Path $dataDir "windows-smoke.log") "buildlogs/windows-smoke.log" -Force
+            }
           }
+
+      - name: Preserve Windows genesis and compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-core-diagnostics
+          path: buildlogs/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Build checksum-verified Windows package
         shell: pwsh
