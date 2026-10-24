@@ -58,11 +58,14 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-zeromq
             mingw-w64-x86_64-libsodium
-            mingw-w64-x86_64-hidapi
             mingw-w64-x86_64-unbound
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-protobuf
             mingw-w64-x86_64-pkgconf
+
+      # HIDAPI and libusb are optional hardware-wallet dependencies; their
+      # former MSYS2 package names are not available on this runner.
+      # This first native build targets the daemon; USB hardware-wallet support
+      # must be configured separately if a wallet build requires it.
 
       - name: Check independent VMRX network constants
         run: |
