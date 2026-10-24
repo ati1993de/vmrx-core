@@ -2,6 +2,16 @@ name: VMRX Core - native Windows x64 build and network checks
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-core.yml'
+      - 'src/**'
+      - 'external/**'
+      - 'cmake/**'
+      - 'contrib/**'
+      - 'CMakeLists.txt'
+      - 'Makefile'
+      - '.gitmodules'
   push:
     branches: [main]
     paths:
@@ -18,6 +28,110 @@ permissions:
   contents: read
 
 jobs:
+  linux-reference-genesis:
+    name: Released Linux v0.1.0 mainnet genesis reference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout candidate VMRX source for consensus-byte comparison
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install release runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-chrono1.83.0t64 libboost-filesystem1.83.0 libboost-program-options1.83.0 libboost-thread1.83.0 libboost-serialization1.83.0 libhidapi-libusb0 libunbound8
+      - name: Verify and unpack published mainnet Linux binary (immutable reference)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p linux-reference logs
+          curl --fail --location --retry 3 \
+            -o linux-reference/vmrx-release.tar.gz \
+            https://github.com/ati1993de/vmrx-core/releases/download/v0.1.0/VMRX-Core-linux-x86_64-v0.1.0.tar.gz
+          echo "399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f  linux-reference/vmrx-release.tar.gz" | sha256sum -c -
+          tar -xzf linux-reference/vmrx-release.tar.gz -C linux-reference
+          find linux-reference -type f -name monerod -print
+      - name: Run reference Linux daemon offline and capture genesis blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, subprocess, tempfile, time, urllib.request
+          binaries = list(pathlib.Path('linux-reference').rglob('monerod'))
+          if len(binaries) != 1:
+              raise SystemExit(f'Expected exactly one Linux monerod, found {len(binaries)}')
+          exe = binaries[0].resolve()
+          exe.chmod(exe.stat().st_mode | 0o111)
+          print('Linux reference monerod SHA256:', hashlib.sha256(exe.read_bytes()).hexdigest(), flush=True)
+          data_dir = pathlib.Path(tempfile.mkdtemp(prefix='vmrx-ref-'))
+          out = pathlib.Path('logs')
+          out.mkdir(exist_ok=True)
+          args = [str(exe), '--non-interactive', '--offline', '--data-dir', str(data_dir),
+                  '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', '29780',
+                  '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29781',
+                  '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
+                  '--check-updates', 'disabled', '--log-file', str(out / 'linux-node.log')]
+          p = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+          def rpc(method, args):
+              body=json.dumps({'jsonrpc':'2.0','id':'0','method':method,'params':args}).encode()
+              req=urllib.request.Request('http://127.0.0.1:29781/json_rpc',data=body,headers={'Content-Type':'application/json'})
+              return json.load(urllib.request.urlopen(req,timeout=3))
+          try:
+              for i in range(45):
+                  if p.poll() is not None:
+                      raise RuntimeError('Linux reference node exited: '+str(p.returncode))
+                  time.sleep(2)
+                  try:
+                      result=rpc('get_block_header_by_height',{'height':0})
+                      if result.get('result',{}).get('block_header'):break
+                  except Exception:pass
+              else:raise RuntimeError('Linux reference node RPC not ready')
+              raw=rpc('get_block',{'height':0})
+              report={'source':'published VMRX Core v0.1.0 Linux x86_64, SHA256 verified',
+                      'release_sha256':'399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f',
+                      'header':result['result']['block_header'],
+                      'blob':raw.get('result',{}).get('blob'),
+                      'block_json':raw.get('result',{}).get('json')}
+              # Independently compare the candidate fork source to the immutable
+              # genesis transaction serialized by the PUBLISHED VMRX mainnet binary.
+              # A matching hash cannot be achieved by changing the expected value.
+              import re
+              source=pathlib.Path('src/cryptonote_config.h').read_text()
+              found=re.search(r'^  std::string const GENESIS_TX = "([0-9a-f]+)";', source, re.MULTILINE)
+              if not found:raise RuntimeError('Missing mainnet GENESIS_TX source declaration')
+              block_bytes=bytes.fromhex(report['blob'])
+              if len(block_bytes)<40 or block_bytes[0:3]!=bytes([16,16,0]):
+                  raise RuntimeError('Unexpected v16 published mainnet genesis block header')
+              reference_tx=block_bytes[39:-1].hex() # header: varints (3), previous hash (32), nonce (4); 0 other TXs
+              report['reference_genesis_tx']=reference_tx
+              report['source_genesis_tx']=found.group(1)
+              report['source_matches_published_linux_mainnet']=(found.group(1)==reference_tx)
+              (out/'linux-reference-genesis.json').write_text(json.dumps(report,indent=2))
+              if not report['source_matches_published_linux_mainnet']:
+                  raise RuntimeError('Consensus fork-source mismatch: mainnet GENESIS_TX differs from published Linux v0.1.0; do not publish Windows Core')
+              print('PASS: Core source mainnet GENESIS_TX exactly matches published Linux binary',flush=True)
+              observed=report['header']['hash']
+              print('LINUX RELEASE GENESIS:',observed,flush=True)
+              print('LINUX RELEASE HEADER:',json.dumps(report['header'],sort_keys=True),flush=True)
+              expected='405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'
+              if observed!=expected:raise RuntimeError('Linux v0.1.0 binary does not match documented mainnet: '+observed)
+          finally:
+              p.terminate()
+              try:p.wait(timeout=8)
+              except subprocess.TimeoutExpired:p.kill()
+              err=p.stderr.read().decode(errors='replace') if p.stderr else ''
+              (out/'linux-stderr.log').write_text(err[-30000:])
+          PY
+      - name: Preserve real Linux genesis reference for binary-to-binary comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-linux-v010-genesis-reference
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
   windows-core:
     name: Native Windows Core (MSYS2 / MinGW64)
     runs-on: windows-2022
@@ -39,6 +153,7 @@ jobs:
           update: true
           install: >-
             base-devel
+            file
             git
             make
             mingw-w64-x86_64-toolchain
@@ -47,11 +162,24 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-zeromq
             mingw-w64-x86_64-libsodium
-            mingw-w64-x86_64-hidapi
             mingw-w64-x86_64-unbound
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-protobuf
             mingw-w64-x86_64-pkgconf
+
+      # HIDAPI and libusb are optional hardware-wallet dependencies; their
+      # former MSYS2 package names are not available on this runner.
+      # This first native build targets the daemon; USB hardware-wallet support
+      # must be configured separately if a wallet build requires it.
+
+      - name: Install pinned MSYS2 HIDAPI/libusb packages from official mirror
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p msys2-deps
+          curl --fail --location --retry 3 --output msys2-deps/hidapi.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-hidapi-0.15.0-2-any.pkg.tar.zst
+          curl --fail --location --retry 3 --output msys2-deps/libusb.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-libusb-1.0.30-1-any.pkg.tar.zst
+          printf '%s  %s\n' '89fb61549a437d65076a092a367fcb264fc7045ee9ebef48cd81f5a76a5588f8' 'msys2-deps/hidapi.pkg.tar.zst' '124edc26b009678a4c5e759481a364abf63ed7f2f49a53092e8bd0a47c0c0740' 'msys2-deps/libusb.pkg.tar.zst' | sha256sum -c -
+          pacman --noconfirm -U msys2-deps/hidapi.pkg.tar.zst msys2-deps/libusb.pkg.tar.zst
 
       - name: Check independent VMRX network constants
         run: |
@@ -66,7 +194,18 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 2
         run: |
           set -euo pipefail
-          make release-static -j2
+          mkdir -p buildlogs
+          make release-static-win64-daemon -j2 2>&1 | tee buildlogs/windows-daemon-build.log
+
+      - name: Show compilation errors on failure
+        if: failure()
+        run: |
+          if [ -f buildlogs/windows-daemon-build.log ]; then
+            echo "=== Last 120 native Windows build log lines ==="
+            tail -n 120 buildlogs/windows-daemon-build.log
+            echo "=== Compiler errors ==="
+            grep -En 'fatal error:| error:|CMake Error|undefined reference|make.*Error' buildlogs/windows-daemon-build.log | tail -n 60 || true
+          fi
 
       - name: Collect Windows executables and DLL dependencies
         run: |
@@ -138,11 +277,47 @@ jobs:
             $res = Invoke-RestMethod -Uri "http://127.0.0.1:29781/json_rpc" -Method POST -ContentType "application/json" -Body $body
             $expected = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
             $actual = [string]$res.result.block_header.hash
-            if ($actual -ne $expected) { throw "GENESIS MISMATCH: expected $expected, got $actual" }
+            New-Item -ItemType Directory -Force -Path "buildlogs" | Out-Null
+            $diagnostic = @{
+              expected_genesis = $expected
+              actual_genesis = $actual
+              is_match = ($actual -eq $expected)
+              daemon_sha256 = (Get-FileHash -Path $daemon -Algorithm SHA256).Hash
+              source_commit = (& git rev-parse HEAD)
+              mainnet_config_nonce = 22093001
+              rpc_get_info = $info
+              rpc_genesis_header = $res.result.block_header
+            }
+            try {
+              $rawRequest = @{jsonrpc="2.0";id="0";method="get_block";params=@{height=0}} | ConvertTo-Json -Depth 5
+              $rawResult = Invoke-RestMethod -Uri "http://127.0.0.1:29781/json_rpc" -Method POST -ContentType "application/json" -Body $rawRequest
+              $diagnostic.rpc_genesis_block_blob = [string]$rawResult.result.blob
+              $diagnostic.rpc_genesis_block_json = [string]$rawResult.result.json
+            } catch {
+              $diagnostic.rpc_get_block_error = [string]$_
+            }
+            $diagnostic | ConvertTo-Json -Depth 12 | Set-Content "buildlogs/windows-genesis.json" -Encoding utf8
+            Write-Host ("VMRX Windows genesis: major={0} minor={1} nonce={2} hash={3}" -f $res.result.block_header.major_version,$res.result.block_header.minor_version,$res.result.block_header.nonce,$actual)
+            if ($actual -ne $expected) {
+              throw "VMRX CHAIN INCOMPATIBILITY: expected $expected, got $actual. Review buildlogs/windows-genesis.json (full genesis block blob and header) against the existing Linux mainnet. Never change the expected hash without proving a matching consensus chain."
+            }
             Write-Host "PASS: Native Windows VMRX daemon starts and reports correct genesis $actual"
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            if (Test-Path (Join-Path $dataDir "windows-smoke.log")) {
+              New-Item -ItemType Directory -Force -Path "buildlogs" | Out-Null
+              Copy-Item (Join-Path $dataDir "windows-smoke.log") "buildlogs/windows-smoke.log" -Force
+            }
           }
+
+      - name: Preserve Windows genesis and compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-core-diagnostics
+          path: buildlogs/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Build checksum-verified Windows package
         shell: pwsh
