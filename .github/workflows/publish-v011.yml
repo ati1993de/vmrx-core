@@ -1,0 +1,106 @@
+name: Publish VMRX Core v0.1.1 (Windows + Linux)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v011.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: vmrx-core-v011-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish verified Windows and Linux Core archives
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_REPO: ati1993de/vmrx-core
+      GH_TOKEN: ${{ github.token }}
+      VMRX_SOURCE_SHA: 029c393fb9716bc666c7617f60959e2525a39b9c
+      WINDOWS_RUN_ID: "40134713729"
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Assert no consensus code changed since the verified Windows build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${VMRX_SOURCE_SHA}^{commit}"
+          git diff --exit-code "${VMRX_SOURCE_SHA}" HEAD -- src external cmake contrib CMakeLists.txt Makefile .gitmodules
+          test -s RELEASE_NOTES_v0.1.1.md
+          echo "PASS: Source/consensus inputs match successful Windows build"
+
+      - name: Require successful native Windows Core build on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(gh api "repos/${GH_REPO}/actions/runs/${WINDOWS_RUN_ID}" --jq '.head_sha')"
+          conclusion="$(gh api "repos/${GH_REPO}/actions/runs/${WINDOWS_RUN_ID}" --jq '.conclusion')"
+          event="$(gh api "repos/${GH_REPO}/actions/runs/${WINDOWS_RUN_ID}" --jq '.event')"
+          test "${actual_sha}" = "${VMRX_SOURCE_SHA}"
+          test "${conclusion}" = "success"
+          test "${event}" = "push"
+          echo "PASS: Published source commit has successful native Windows + genesis CI"
+
+      - name: Obtain checked Windows executable archive from successful Actions run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p stage/windows release
+          gh run download "${WINDOWS_RUN_ID}" --repo "${GH_REPO}" \
+            --name vmrx-windows-core-buildtest --dir stage/windows
+          test -s stage/windows/VMRX-Core-windows-x86_64-buildtest.zip
+          test -s stage/windows/SHA256SUMS
+          (cd stage/windows && sha256sum -c SHA256SUMS)
+          unzip -t stage/windows/VMRX-Core-windows-x86_64-buildtest.zip
+          unzip -Z1 stage/windows/VMRX-Core-windows-x86_64-buildtest.zip | grep -Eq '(^|/)monerod\.exe$'
+          cp stage/windows/VMRX-Core-windows-x86_64-buildtest.zip release/VMRX-Core-windows-x86_64-v0.1.1.zip
+          echo "PASS: Windows Core verified and packaged for release"
+
+      - name: Reuse byte-identical tested Linux v0.1.0 artifact, verify archive SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --output release/VMRX-Core-linux-x86_64-v0.1.1.tar.gz \
+            "https://github.com/ati1993de/vmrx-core/releases/download/v0.1.0/VMRX-Core-linux-x86_64-v0.1.0.tar.gz"
+          echo '399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f  release/VMRX-Core-linux-x86_64-v0.1.1.tar.gz' | sha256sum -c -
+          tar -tzf release/VMRX-Core-linux-x86_64-v0.1.1.tar.gz >/dev/null
+          echo "PASS: Linux archive matches v0.1.0 byte-for-byte"
+
+      - name: Check tag collision and write SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GH_REPO}/git/ref/tags/v0.1.1" >/dev/null 2>&1; then
+            echo "ERROR: v0.1.1 already exists; will not overwrite any release"
+            exit 1
+          fi
+          (cd release && sha256sum VMRX-Core-* > SHA256SUMS)
+          (cd release && sha256sum -c SHA256SUMS)
+          ls -lh release
+
+      - name: Create official v0.1.1 GitHub Release with both platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v0.1.1 \
+            "release/VMRX-Core-windows-x86_64-v0.1.1.zip" \
+            "release/VMRX-Core-linux-x86_64-v0.1.1.tar.gz" \
+            "release/SHA256SUMS" \
+            --repo "${GH_REPO}" \
+            --target "${GITHUB_SHA}" \
+            --title "VMRX Core v0.1.1 — Native Windows + Linux full node" \
+            --notes-file RELEASE_NOTES_v0.1.1.md \
+            --latest
+          gh release view v0.1.1 --repo "${GH_REPO}"
