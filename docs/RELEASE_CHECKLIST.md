@@ -1,0 +1,21 @@
+# Gate checklist for a public VMRX release
+
+- [x] Mainnet genesis distinct and explicitly checked by operator scripts.
+- [x] P2P synchronized across two VPS at height 5 on 2026-10-24.
+- [x] RandomX mining observed; 298 H/s / 1 thread, valid blocks through at least 68 on local mainnet.
+- [x] Mainnet founder-wallet cache synced to height 69 and displayed unlocked balance.
+- [ ] **Critical**: recover original founder address from verified offline seed; new attempted seed reconstructed a *different* address.
+- [ ] **Critical**: spend and independently receive a small mature VMRX output; archive tx ID/proofs.
+- [ ] **Critical**: independent consensus, cryptography and security audit.
+- [ ] **Critical**: validate network difficulty/time behavior and possible reorg edge cases.
+- [ ] **Critical**: release actual licensed source code and verify binary reproducibility.
+- [ ] Confirm new mined blocks replicate to second VPS, not only first 5.
+- [ ] Record full signed mainnet configuration and pinned P2P peers/seed service.
+- [ ] Repair packaging file permissions; declare or bundle valid runtime dependencies.
+- [ ] Build and test Windows x64 VMRX daemon/wallet binaries from approved fork.
+- [ ] Replace draft GUI logo with official VMRX SVG/PNG/ICO.
+- [ ] Test clean-install, uninstall, migration, wallet backup/recovery on Ubuntu and Windows.
+- [ ] Code-sign Windows builds; publish signed SHA256SUMS and a GitHub release provenance statement.
+- [ ] Security review of GUI mining controls and local RPC attack surface.
+- [ ] Public disclosure of founder 200,000 VMRX premine and tail emission/no hard cap.
+- [ ] Approve first **stable** public release only after critical gates pass.
