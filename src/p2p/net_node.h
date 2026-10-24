@@ -295,11 +295,12 @@ namespace nodetool
     virtual void clear_used_stripe_peers();
 
   private:
+    // Only VMRX mainnet peers. Never fall back to upstream Monero DNS seeds.
+    // 31.70.81.5 is operator-confirmed. 217.154.93.20 is a user-supplied
+    // candidate and must pass a real VMRX P2P handshake to count as a peer.
     const std::vector<std::string> m_seed_nodes_list =
-    { "seeds.moneroseeds.se"
-    , "seeds.moneroseeds.ae.org"
-    , "seeds.moneroseeds.ch"
-    , "seeds.moneroseeds.li"
+    { "31.70.81.5:29780"
+    , "217.154.93.20:29780"
     };
 
     bool islimitup=false;
