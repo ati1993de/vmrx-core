@@ -211,12 +211,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p package/core
-          node_path="$(find build -type f -name monerod.exe -print -quit)"
+          node_path="$(find build -type f -name vmrxd.exe -print -quit)"
           if [ -z "$node_path" ]; then
             echo 'ERROR: The actual VMRX monerod.exe was not produced'
             exit 1
           fi
-          cp "$node_path" package/core/monerod.exe
+          cp "$node_path" package/core/vmrxd.exe
           for exe in monero-wallet-cli.exe monero-wallet-rpc.exe; do
             found="$(find build -type f -name "$exe" -print -quit)"
             if [ -n "$found" ]; then cp "$found" "package/core/$exe"; fi
@@ -237,19 +237,19 @@ jobs:
             done < <(objdump -p "$current" 2>/dev/null | sed -n 's/^[[:space:]]*DLL Name:[[:space:]]*//p')
           done
           find package/core -maxdepth 1 -type f -printf '%f\\n' | sort
-          test -s package/core/monerod.exe
+          test -s package/core/vmrxd.exe
 
       - name: Verify Windows executable is a real PE program
         run: |
           set -euo pipefail
-          file package/core/monerod.exe
-          file package/core/monerod.exe | grep -q 'PE32+'
+          file package/core/vmrxd.exe
+          file package/core/vmrxd.exe | grep -q 'PE32+'
 
       - name: Node startup test - inspect VMRX genesis via local RPC
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $daemon = Join-Path $PWD "package/core/monerod.exe"
+          $daemon = Join-Path $PWD "package/core/vmrxd.exe"
           $dataDir = Join-Path $env:RUNNER_TEMP "vmrx-windows-genesis-smoke"
           New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
           $arguments = @(
@@ -318,7 +318,7 @@ jobs:
         timeout-minutes: 6
         run: |
           $ErrorActionPreference = "Stop"
-          $daemon = Join-Path $PWD "package/core/monerod.exe"
+          $daemon = Join-Path $PWD "package/core/vmrxd.exe"
           $dataDir = Join-Path $env:RUNNER_TEMP "vmrx-windows-block1-sync"
           $logFile = Join-Path $dataDir "vmrx-sync.log"
           New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
