@@ -1364,6 +1364,30 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
     return false;
   }
+
+  // VMRX mainnet's historical block 1 contains a *single*, disclosed
+  // 200,000 VMRX founder allocation in addition to its normal subsidy.
+  // Restore validation of that exact already-mined block, and no other:
+  // its block and miner-tx hashes, both output amounts, height, network,
+  // version, fee and ordinary subsidy must all match the published chain.
+  // Every other block continues through the unmodified reward rules.
+  const bool verified_mainnet_founder_block =
+    m_nettype == MAINNET &&
+    get_block_height(b) == 1 &&
+    b.major_version == 16 && b.minor_version == 16 &&
+    version == 16 && fee == 0 &&
+    already_generated_coins == 35184372088831ULL &&
+    base_reward == 35184304979968ULL &&
+    b.miner_tx.vout.size() == 2 &&
+    b.miner_tx.vout[0].amount == 200000000000000000ULL &&
+    b.miner_tx.vout[1].amount == 35184304979968ULL &&
+    pod_to_hex(get_block_hash(b)) == "79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293" &&
+    pod_to_hex(get_transaction_hash(b.miner_tx)) == "d7f9691cb7c478fd87957e2210df12205399968e394e1d2a3e58ae56fb7b4645";
+  if (verified_mainnet_founder_block)
+  {
+    base_reward += 200000000000000000ULL;
+  }
+
   if(base_reward + fee < money_in_use)
   {
     MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee) << "(" << print_money(base_reward) << "+" << print_money(fee) << "), cumulative_block_weight " << cumulative_block_weight);
