@@ -33,6 +33,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
+      - name: Checkout candidate VMRX source for consensus-byte comparison
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install release runtime libraries
         run: |
           sudo apt-get update
@@ -89,7 +93,24 @@ jobs:
                       'header':result['result']['block_header'],
                       'blob':raw.get('result',{}).get('blob'),
                       'block_json':raw.get('result',{}).get('json')}
+              # Independently compare the candidate fork source to the immutable
+              # genesis transaction serialized by the PUBLISHED VMRX mainnet binary.
+              # A matching hash cannot be achieved by changing the expected value.
+              import re
+              source=pathlib.Path('src/cryptonote_config.h').read_text()
+              found=re.search(r'^  std::string const GENESIS_TX = "([0-9a-f]+)";', source, re.MULTILINE)
+              if not found:raise RuntimeError('Missing mainnet GENESIS_TX source declaration')
+              block_bytes=bytes.fromhex(report['blob'])
+              if len(block_bytes)<40 or block_bytes[0:3]!=bytes([16,16,0]):
+                  raise RuntimeError('Unexpected v16 published mainnet genesis block header')
+              reference_tx=block_bytes[39:-1].hex() # header: varints (3), previous hash (32), nonce (4); 0 other TXs
+              report['reference_genesis_tx']=reference_tx
+              report['source_genesis_tx']=found.group(1)
+              report['source_matches_published_linux_mainnet']=(found.group(1)==reference_tx)
               (out/'linux-reference-genesis.json').write_text(json.dumps(report,indent=2))
+              if not report['source_matches_published_linux_mainnet']:
+                  raise RuntimeError('Consensus fork-source mismatch: mainnet GENESIS_TX differs from published Linux v0.1.0; do not publish Windows Core')
+              print('PASS: Core source mainnet GENESIS_TX exactly matches published Linux binary',flush=True)
               observed=report['header']['hash']
               print('LINUX RELEASE GENESIS:',observed,flush=True)
               print('LINUX RELEASE HEADER:',json.dumps(report['header'],sort_keys=True),flush=True)
