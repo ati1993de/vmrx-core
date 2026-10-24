@@ -234,7 +234,11 @@ namespace config
   boost::uuids::uuid const NETWORK_ID = { {
       0x9b, 0xc3, 0xf0, 0x01, 0x0f, 0x16, 0x4c, 0x4e, 0x8f, 0x1b, 0x56, 0x4d, 0x52, 0x58, 0x31, 0x01
     } }; // Bender's nightmare
-  std::string const GENESIS_TX = "023c01ff0001ffffffffffff07039b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd088071f93f017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1021c564d52582f67656e657369732f6d61696e2f323032362d31302d323200";
+  // Mainnet consensus: exact genesis miner transaction serialized by published Linux Core v0.1.0.
+  // Reference archive SHA256: 399e0c4695127b533c373a29239703a5a369e0e43434a49ddd378b007114147f
+  // RPC reference genesis hash: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4
+  // NEVER regenerate/change this blob: all existing mainnet blocks depend on it.
+  std::string const GENESIS_TX = "023c01ff0001ffffffffffff0703ec63b3d9bda318aef4e025b20de2bb7405079fdeca151889564088adc06c39d8ab3e01e18cc3e06fa4ef8306f174817bbdee23e163fe2a1e4b8be45bd5dcacc404b91b021b564d52582f67656e657369732f6d61696e2f524346312f6275726e00";
   uint32_t const GENESIS_NONCE = 22093001;
 
   // Hash domain separators
