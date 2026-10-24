@@ -1,0 +1,34 @@
+name: VMRX · Mainnet metadata and repository hygiene
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fork parameters and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s LICENSE
+          test -s README.md
+          test -s docs/FOUNDER_ALLOCATION.md
+          test -s assets/vmrx-logo.png
+          grep -q 'DIFFICULTY_TARGET_V2.*120' src/cryptonote_config.h
+          grep -q 'CRYPTONOTE_NAME.*"vmrx"' src/cryptonote_config.h
+          grep -q '200,000 VMRX' docs/RELEASE_STATUS.md
+          git diff --check
+      - name: Reject private deployment files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(PRIVATE|wallets-live|wallets-recovered|data\.mdb|lock\.mdb)(/|$)|(^|/)(founder|miner-ONLY-TEST)\.(keys|password)$'; then
+            echo 'Deployment wallet/private data is tracked!'
+            exit 1
+          fi
+          echo 'PASS: No known deployment-secret paths tracked'
