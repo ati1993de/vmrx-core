@@ -22,9 +22,9 @@ jobs:
     env:
       GH_REPO: ati1993de/vmrx-core
       GH_TOKEN: ${{ github.token }}
-      VMRX_SOURCE_SHA: aa3039b05c7e00c4c78a27e49f7da2df3ad9194e
-      WINDOWS_RUN_ID: '40186210260'
-      LINUX_RUN_ID: '40186210279'
+      VMRX_SOURCE_SHA: b90d236f9433ffc9158c24d8a7b6f7f1c0e5d844
+      WINDOWS_RUN_ID: '40187138005'
+      LINUX_RUN_ID: '40187138034'
     steps:
       - name: Checkout release manifest and history
         uses: actions/checkout@v4
