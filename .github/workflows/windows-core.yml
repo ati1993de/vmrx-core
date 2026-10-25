@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/windows-core.yml'
+      - 'scripts/test_wallet_rpc_recovery.py'
       - 'src/**'
       - 'external/**'
       - 'cmake/**'
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/windows-core.yml'
+      - 'scripts/test_wallet_rpc_recovery.py'
       - 'src/**'
       - 'external/**'
       - 'cmake/**'
@@ -271,6 +273,14 @@ jobs:
           test -s package/core/vmrxd.exe
           test -s package/core/monero-wallet-rpc.exe
           test -s package/core/vmrx.ico
+
+      - name: Preserve compiled wallet engine for isolated RPC diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-native-wallet-windows-smoke-bin
+          path: package/core/
+          if-no-files-found: error
+          retention-days: 5
 
       - name: Verify native wallet create-open-seed-restore with Windows RPC
         run: |
