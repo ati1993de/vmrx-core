@@ -70,7 +70,7 @@ jobs:
           cmake --build build-linux-release --target daemon --parallel 2
           test -x build-linux-release/bin/vmrxd
           build-linux-release/bin/vmrxd --version | tee linux-core-version.txt
-          grep -q 'VMRX Core v0.1.2-dev' linux-core-version.txt
+          grep -q 'VMRX Core v0.1.2' linux-core-version.txt
       - name: Verify real full-mainnet block acceptance and historical chain hash
         shell: bash
         timeout-minutes: 14
