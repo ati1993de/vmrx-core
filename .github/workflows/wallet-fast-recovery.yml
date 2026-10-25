@@ -1,0 +1,70 @@
+name: VMRX wallet native authenticated recovery retest (reuse pinned Core build)
+
+on:
+  push:
+    branches: [feature/wallet-v013-auth-diagnostics-20261025]
+    paths: ['scripts/test_wallet_rpc_recovery.py']
+  pull_request:
+    paths: ['scripts/test_wallet_rpc_recovery.py']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  linux-wallet-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install VMRX daemon and wallet runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-all-dev libssl3t64 libzmq5 libsodium23 libunbound8 libhidapi-libusb0
+      - name: Retrieve fork-native binaries from fixed Core v0.1.3 PR build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 40188876802 -R ati1993de/vmrx-core -n vmrx-v013-wallet-linux-diagnostic-binaries -D /tmp/vmrx-wallet-bin
+          find /tmp/vmrx-wallet-bin -type f -maxdepth 5
+          DAEMON="$(find /tmp/vmrx-wallet-bin -type f -name vmrxd -print -quit)"
+          WALLET="$(find /tmp/vmrx-wallet-bin -type f -name monero-wallet-rpc -print -quit)"
+          test -n "$DAEMON" && test -n "$WALLET"
+          chmod +x "$DAEMON" "$WALLET"
+          echo "DAEMON=$DAEMON" >> "$GITHUB_ENV"
+          echo "WALLET=$WALLET" >> "$GITHUB_ENV"
+      - name: Test localhost authenticated native wallet create/open/recovery
+        run: python scripts/test_wallet_rpc_recovery.py --daemon "$DAEMON" --wallet-rpc "$WALLET"
+
+  windows-wallet-regression:
+    runs-on: windows-2022
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Retrieve native MinGW Core + wallet and runtime DLLs
+        shell: pwsh
+        run: |
+          gh run download 40188876789 -R ati1993de/vmrx-core -n vmrx-v013-wallet-windows-diagnostic-binaries -D "$env:RUNNER_TEMP\wallet-bin"
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows artifact not ready/accessible' }
+          $d = Get-ChildItem "$env:RUNNER_TEMP\wallet-bin" -Recurse -File -Filter vmrxd.exe | Select-Object -First 1
+          $w = Get-ChildItem "$env:RUNNER_TEMP\wallet-bin" -Recurse -File -Filter monero-wallet-rpc.exe | Select-Object -First 1
+          if (!$d -or !$w) { throw 'Missing native VMRX binaries' }
+          "DAEMON=$($d.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "WALLET=$($w.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Test localhost authenticated native wallet create/open/recovery
+        shell: pwsh
+        run: python scripts/test_wallet_rpc_recovery.py --daemon "$env:DAEMON" --wallet-rpc "$env:WALLET"
