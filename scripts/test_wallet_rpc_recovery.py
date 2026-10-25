@@ -47,7 +47,7 @@ def curl_digest_probe(url: str, username: str, password: str) -> str:
     if not shutil.which("curl"):
         return "curl unavailable"
     body = json.dumps({"jsonrpc": "2.0", "id": "probe", "method": "get_version"})
-    config = f'digest\\nuser = "{username}:{password}"\\n'
+    config = f'digest\nuser = "{username}:{password}"\n'
     try:
         completed = subprocess.run(
             ["curl", "--config", "-", "--silent", "--show-error", "--max-time", "8",
