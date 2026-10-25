@@ -65,7 +65,7 @@ One existing founder wallet displayed `200313.604591476068 VMRX` unlocked when s
 
 ### CI note
 
-Several inherited Monero CI workflows do not run correctly for this fork and are archived for later adaptation. Native VMRX Windows and Linux release pipelines now compile and validate actual mainnet block synchronization through historical height 1193. A separate Windows Core release-only smoke test checks fresh standalone seed discovery. These are functional tests, **not** substitutes for deterministic wallet recovery, end-to-end spend tests, independent consensus audit or reproducible-build verification.
+Several inherited Monero CI workflows do not run correctly for this fork and are archived for later adaptation. Native VMRX Windows and Linux release pipelines now compile and validate actual mainnet block synchronization through historical height 1193. The current native Windows Core CI also verifies two fresh standalone peer-discovery and blockchain-synchronization runs without manually specified peers. These are functional tests, **not** substitutes for deterministic wallet recovery, end-to-end spend tests, independent consensus audit or reproducible-build verification.
 
 ## License and attribution
 
