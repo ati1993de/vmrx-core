@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.error
 
 GENESIS = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
 
@@ -28,8 +29,13 @@ def rpc(url, method, params=None, opener=None, timeout=6):
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
-    with (opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))).open(request, timeout=timeout) as response:
-        data = json.load(response)
+    try:
+        with (opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))).open(request, timeout=timeout) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as exc:
+        # Diagnostic must never reveal credentials, seeds, or response bodies.
+        auth_scheme = (exc.headers.get('WWW-Authenticate', '').split(' ', 1)[0] or 'none')
+        raise RuntimeError(f'RPC {method} HTTP {exc.code}; authentication scheme={auth_scheme}') from None
     if data.get("error"):
         raise RuntimeError(f"RPC {method} rejected: code {data['error'].get('code', '?')}")
     return data.get("result", data)
@@ -44,7 +50,7 @@ def wait_ready(fn, proc, limit=45):
         try:
             return fn()
         except (OSError, ValueError, RuntimeError) as exc:
-            last_error = type(exc).__name__
+            last_error = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
             time.sleep(0.4)
     raise RuntimeError("Local RPC did not become ready: " + str(last_error))
 
