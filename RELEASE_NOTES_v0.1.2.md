@@ -11,7 +11,7 @@
 - The operator's isolated Windrose Linux build synchronized to height 1194 and exactly matched the productive chain tip on 2026-10-25. GitHub Actions independently verify newly rebuilt Linux and Windows candidates with separate fresh data directories.
 
 ## Downloads
-- `VMRX-Core-windows-x86_64-v0.1.2.zip`: full Windows node and required DLLs, `core/vmrxd.exe` and `core/vmrx.ico`.
+- `VMRX-Core-windows-x86_64-v0.1.2.zip`: full Windows node and required DLLs, `vmrxd.exe` and `vmrx.ico` inside the Core archive.
 - `VMRX-Core-linux-x86_64-v0.1.2.tar.gz`: newly compiled Linux daemon, **not** copied from v0.1.0/RC2.
 - `SHA256SUMS`: verify archive checksums before extracting.
 
