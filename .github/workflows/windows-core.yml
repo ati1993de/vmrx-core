@@ -189,6 +189,18 @@ jobs:
           grep -Eq 'CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW[[:space:]]+60' src/cryptonote_config.h
           echo 'PASS: VMRX constants present in checked-out source'
 
+      - name: Prepare Python for official VMRX icon generation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build multi-resolution Windows icon from the official transparent VMRX logo
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python scripts/build_windows_icon.py
+          if (-not (Test-Path assets/vmrx.ico)) { throw 'Required VMRX icon not generated' }
+
       - name: Compile the real VMRX Windows node from source
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: 2
@@ -213,10 +225,11 @@ jobs:
           mkdir -p package/core
           node_path="$(find build -type f -name vmrxd.exe -print -quit)"
           if [ -z "$node_path" ]; then
-            echo 'ERROR: The actual VMRX monerod.exe was not produced'
+            echo 'ERROR: The real VMRX vmrxd.exe was not produced'
             exit 1
           fi
           cp "$node_path" package/core/vmrxd.exe
+          cp assets/vmrx.ico package/core/vmrx.ico
           for exe in monero-wallet-cli.exe monero-wallet-rpc.exe; do
             found="$(find build -type f -name "$exe" -print -quit)"
             if [ -n "$found" ]; then cp "$found" "package/core/$exe"; fi
@@ -238,12 +251,16 @@ jobs:
           done
           find package/core -maxdepth 1 -type f -printf '%f\\n' | sort
           test -s package/core/vmrxd.exe
+          test -s package/core/vmrx.ico
 
       - name: Verify Windows executable is a real PE program
         run: |
           set -euo pipefail
           file package/core/vmrxd.exe
           file package/core/vmrxd.exe | grep -q 'PE32+'
+          # A sidecar ICO is not sufficient: Explorer needs an actual PE .rsrc section.
+          objdump -h package/core/vmrxd.exe | grep -Eq '[[:space:]]\.rsrc[[:space:]]'
+          echo 'PASS: Native Windows vmrxd.exe has embedded VMRX icon resources'
 
       - name: Node startup test - inspect VMRX genesis via local RPC
         shell: pwsh
