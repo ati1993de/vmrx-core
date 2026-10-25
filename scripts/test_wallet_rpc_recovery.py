@@ -169,7 +169,6 @@ def run(daemon_binary: Path, wallet_binary: Path):
             except RuntimeError:
                 print("Digest interoperability diagnostic: " + curl_digest_probe(wallet_url, user, password), flush=True)
                 try:
-                    import requests
                     probe = requests.post(wallet_url,
                         json={"jsonrpc": "2.0", "id": "requests-digest", "method": "get_version"},
                         auth=requests.auth.HTTPDigestAuth(user, password), timeout=8)
