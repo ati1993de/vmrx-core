@@ -34,6 +34,19 @@ class NativeWalletDigestAuthHandler(urllib.request.HTTPDigestAuthHandler):
         if result is not None:
             result = result.replace('algorithm="MD5"', 'algorithm=MD5').replace(
                 'algorithm="MD5-sess"', 'algorithm=MD5-sess')
+            # Only auth grammar diagnostics: do NOT log passwords, seeds,
+            # nonces, cnonce, response digest, username or full auth header.
+            import re
+            algorithm = re.search(r'algorithm=([A-Za-z0-9-]+)', result)
+            qop = re.search(r'(?<![A-Za-z])qop=([^, ]+)', result)
+            nc = re.search(r'(?<![A-Za-z])nc=([0-9a-fA-F]{8})', result)
+            uri = re.search(r'uri="([^"]*)"', result)
+            print(f"Python Digest header: algorithm={algorithm.group(1) if algorithm else 'missing'}, "
+                  f"qop={qop.group(1) if qop else 'missing'}, "
+                  f"nc={nc.group(1) if nc else 'missing'}, "
+                  f"uri={uri.group(1) if uri else 'missing'}", flush=True)
+        else:
+            print("Python Digest authorization could not be generated for native RPC challenge", flush=True)
         return result
 
 
