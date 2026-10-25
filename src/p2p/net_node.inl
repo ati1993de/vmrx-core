@@ -533,7 +533,7 @@ namespace nodetool
     if (m_nettype == cryptonote::MAINNET && !m_offline &&
         m_exclusive_peers.empty() && m_priority_peers.empty() &&
         m_command_line_peers.empty() &&
-        !command_line::has_arg(vm, arg_p2p_seed_node))
+        command_line::is_arg_defaulted(vm, arg_p2p_seed_node))
     {
       const uint16_t default_port = cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT;
       for (const auto& seed : get_seed_nodes(epee::net_utils::zone::public_))
