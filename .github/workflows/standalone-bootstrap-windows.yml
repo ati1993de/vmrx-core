@@ -1,0 +1,124 @@
+name: VMRX v0.1.2 standalone Windows bootstrap / zero CLI peer overrides
+on:
+  push:
+    branches: [fix/standalone-core-bootstrap-v012]
+  pull_request:
+    paths:
+      - .github/workflows/standalone-bootstrap-windows.yml
+      - README.md
+      - docs/RELEASE_STATUS.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  standalone:
+    name: Extract official Windows Core and sync using built-in seeds ONLY
+    runs-on: windows-2022
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run official SHA256-verified standalone VMRX v0.1.2
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $archive = Join-Path $env:RUNNER_TEMP 'vmrx-v012-windows.zip'
+          $url = 'https://github.com/ati1993de/vmrx-core/releases/download/v0.1.2/VMRX-Core-windows-x86_64-v0.1.2.zip'
+          $expectedArchiveSha = 'e97d2711f267463fe63aece576a20642eb027f11e6a66837ec675604ceb474b4'
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actualArchiveSha = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualArchiveSha -ne $expectedArchiveSha) {
+            throw "Official VMRX Core v0.1.2 archive SHA256 mismatch: $actualArchiveSha"
+          }
+          Write-Host "PASS: independent release archive SHA256 verified ($actualArchiveSha)"
+          $unpack = Join-Path $env:RUNNER_TEMP 'vmrx-v012-standalone'
+          Expand-Archive -Path $archive -DestinationPath $unpack -Force
+          $daemon = Join-Path $unpack 'vmrxd.exe'
+          if (!(Test-Path $daemon -PathType Leaf)) { throw 'Published VMRX Core has no vmrxd.exe' }
+          $version = (& $daemon --version | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'VMRX Core v0.1.2') {
+            throw "Unexpected standalone daemon version: $version"
+          }
+
+          $data = Join-Path $env:RUNNER_TEMP 'vmrx-v012-seed-only-data'
+          $log = Join-Path $data 'vmrx-standalone-bootstrap.log'
+          $out = Join-Path $data 'stdout.txt'
+          $err = Join-Path $data 'stderr.txt'
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          New-Item -ItemType Directory -Force -Path 'buildlogs' | Out-Null
+          # Strictly no --add-priority-node, --add-exclusive-node, --add-peer,
+          # --seed-node, nor GUI/third-party peer list. Only built-in VMRX seeds.
+          $arguments = @(
+            '--non-interactive',
+            '--data-dir', $data,
+            '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', '29880',
+            '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29881',
+            '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
+            '--check-updates', 'disabled',
+            '--log-level', '2', '--log-file', $log
+          )
+          if ((($arguments -join ' ') -match '--(seed-node|add-peer|add-exclusive-node|add-priority-node)')) {
+            throw 'Invalid no-overrides test: a manual P2P seed argument was provided'
+          }
+          $p = $null
+          $success = $false
+          $lastState = $null
+          try {
+            $p = Start-Process -FilePath $daemon -ArgumentList $arguments -WorkingDirectory $unpack -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            $deadline = (Get-Date).AddMinutes(5)
+            while ((Get-Date) -lt $deadline) {
+              Start-Sleep -Seconds 3
+              if ($p.HasExited) { throw "Standalone vmrxd exited prematurely: $($p.ExitCode)" }
+              try {
+                $info = Invoke-RestMethod -Uri 'http://127.0.0.1:29881/get_info' -TimeoutSec 3
+                $peers = [int]$info.incoming_connections_count + [int]$info.outgoing_connections_count
+                $lastState = "height=$($info.height), peers=$peers, synced=$($info.synchronized), target=$($info.target_height)"
+                Write-Host "Stand-alone Core: $lastState"
+                if ($peers -gt 0 -and [int]$info.height -ge 1194 -and $info.synchronized) {
+                  $checkpoints = @(
+                    @{h=0; hash='405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'},
+                    @{h=1; hash='79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293'},
+                    @{h=2; hash='85089d1458e2e6f81673ae24dfee40651b375091f9b9c200ecca66b53fda8675'},
+                    @{h=10; hash='ca1253c7cd24f355ecc9b7163764205388281ac0a9ee15c4c2f502df7c0adbba'},
+                    @{h=100; hash='ba4662de0e2e4a16618b5a0fd2ae691297fe3f205491ef2e6b0e6112ce3cf85d'},
+                    @{h=1193; hash='47e0b825d24cf99042fcaf31fb721a2b593d2c3b5e902c6f1e8dd063ed75e591'}
+                  )
+                  foreach ($entry in $checkpoints) {
+                    $body = @{jsonrpc='2.0';id=1;method='get_block_header_by_height';params=@{height=$entry.h}} | ConvertTo-Json -Depth 6
+                    $got = Invoke-RestMethod -Uri 'http://127.0.0.1:29881/json_rpc' -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 5
+                    if ([string]$got.result.block_header.hash -ne [string]$entry.hash) {
+                      throw "Standalone Core WRONG historical chain at height $($entry.h): $($got.result.block_header.hash)"
+                    }
+                  }
+                  Write-Host "PASS: untouched official Windows v0.1.2 standalone vmrxd bootstraps automatically with zero manually specified peer addresses; $lastState; six historical checkpoint hashes verified."
+                  $success = $true
+                  break
+                }
+              } catch {
+                if ($_.Exception.Message -match 'WRONG historical chain') { throw }
+                Write-Host "RPC not ready or intermittent: $($_.Exception.Message)"
+              }
+            }
+            if (-not $success) {
+              throw "FAIL: standalone vmrxd never reached mainnet tip with a peer via built-in seeds in 5 minutes. Last state: $lastState"
+            }
+          } finally {
+            if ($p -and !$p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            foreach ($source in @($log, $out, $err)) {
+              if (Test-Path $source) { Copy-Item $source -Destination 'buildlogs' -Force }
+            }
+            if (Test-Path $log) {
+              Get-Content $log -Tail 80 -ErrorAction SilentlyContinue | Out-Host
+            }
+          }
+      - name: Store isolated Windows bootstrap logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-v012-standalone-windows-seed-diagnostics
+          path: buildlogs/
+          retention-days: 14
+          if-no-files-found: ignore
