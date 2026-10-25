@@ -262,6 +262,16 @@ jobs:
           objdump -h package/core/vmrxd.exe | grep -Eq '[[:space:]]\.rsrc[[:space:]]'
           echo 'PASS: Native Windows vmrxd.exe has embedded VMRX icon resources'
 
+      - name: Check newly built native Windows Core v0.1.3 identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (& 'package/core/vmrxd.exe' --version | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'VMRX Core v0\.1\.3') {
+            throw "Wrong packaged Core version, expected v0.1.3: $version"
+          }
+          Write-Host "PASS: $version"
+
       - name: Node startup test - inspect VMRX genesis via local RPC
         shell: pwsh
         run: |
@@ -402,6 +412,80 @@ jobs:
               if (-not $passed) {
                 Write-Host "=== Windows chain-acceptance diagnostics (last 180 lines) ==="
                 Get-Content $logFile -Tail 180 -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
+      - name: Validate two fresh Windows first launches with builtin P2P peers ONLY
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $daemon = Join-Path $PWD 'package/core/vmrxd.exe'
+          $anchors = @(
+            @{h=0; hash='405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'},
+            @{h=1; hash='79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293'},
+            @{h=2; hash='85089d1458e2e6f81673ae24dfee40651b375091f9b9c200ecca66b53fda8675'},
+            @{h=10; hash='ca1253c7cd24f355ecc9b7163764205388281ac0a9ee15c4c2f502df7c0adbba'},
+            @{h=100; hash='ba4662de0e2e4a16618b5a0fd2ae691297fe3f205491ef2e6b0e6112ce3cf85d'},
+            @{h=1193; hash='47e0b825d24cf99042fcaf31fb721a2b593d2c3b5e902c6f1e8dd063ed75e591'}
+          )
+          foreach ($i in 1..2) {
+            $dataDir = Join-Path $env:RUNNER_TEMP "vmrx-auto-priority-test-$i"
+            $logPath = Join-Path $dataDir 'vmrx-priority-bootstrap.log'
+            $out = Join-Path $dataDir 'stdout.txt'
+            $err = Join-Path $dataDir 'stderr.txt'
+            $p2pPort = 29890 + $i
+            $rpcPort = 29894 + $i
+            New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+            $arguments = @(
+              '--non-interactive', '--data-dir', $dataDir,
+              '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', "$p2pPort",
+              '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', "$rpcPort",
+              '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
+              '--check-updates', 'disabled', '--log-level', '1', '--log-file', $logPath
+            )
+            if (($arguments -join ' ') -match '--(add-priority-node|add-exclusive-node|seed-node|add-peer)') {
+              throw 'TEST ERROR: no manual seed or peer overrides are permitted'
+            }
+            $proc = $null
+            $passed = $false
+            try {
+              Write-Host "Automatic peer discovery clean boot #$i, no peer overrides"
+              $proc = Start-Process -FilePath $daemon -ArgumentList $arguments -WorkingDirectory (Split-Path $daemon) -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+              $deadline = (Get-Date).AddMinutes(3)
+              while ((Get-Date) -lt $deadline) {
+                Start-Sleep -Seconds 3
+                if ($proc.HasExited) { throw "Fresh vmrxd unexpectedly exited: $($proc.ExitCode)" }
+                try {
+                  $info = Invoke-RestMethod -Uri "http://127.0.0.1:$rpcPort/get_info" -TimeoutSec 3
+                  $npeers = [int]$info.incoming_connections_count + [int]$info.outgoing_connections_count
+                  Write-Host "Boot #$i height=$($info.height) peers=$npeers synced=$($info.synchronized)"
+                  if ($info.height -ge 1194 -and $info.synchronized -and $npeers -ge 1) {
+                    foreach ($anchor in $anchors) {
+                      $body = @{jsonrpc='2.0';id='1';method='get_block_header_by_height';params=@{height=$anchor.h}} | ConvertTo-Json -Depth 5
+                      $head = Invoke-RestMethod -Uri "http://127.0.0.1:$rpcPort/json_rpc" -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 5
+                      if ([string]$head.result.block_header.hash -ne [string]$anchor.hash) {
+                        throw "Wrong historic chain hash at height $($anchor.h)"
+                      }
+                    }
+                    if (!(Select-String -Path $logPath -Pattern 'VMRX standalone mainnet bootstrap: using' -Quiet)) {
+                      throw 'Missing implicit VMRX persistent priority bootstrap log marker'
+                    }
+                    Write-Host "PASS: clean Windows Core boot #$i auto-connected and synced beyond 1193 to the original VMRX mainnet with $npeers peer(s)"
+                    $passed = $true
+                    break
+                  }
+                } catch {
+                  if ($_.Exception.Message -match 'Wrong historic|Missing implicit') { throw }
+                }
+              }
+              if (!$passed) { throw "FAIL: clean Windows auto-bootstrap #$i did not sync to the original mainnet within 3 minutes" }
+            } finally {
+              if ($proc -and !$proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+              if (Test-Path $logPath) {
+                Copy-Item $logPath "buildlogs/windows-standalone-bootstrap-$i.log" -Force
+                Get-Content $logPath -Tail 15 -ErrorAction SilentlyContinue
               }
             }
           }

@@ -519,6 +519,34 @@ namespace nodetool
         return false;
     }
 
+    // VMRX mainnet: an unconfigured, freshly installed standalone Core needs
+    // persistent P2P bootstrap connections, not only transient seed handshakes.
+    // Seed handshakes intentionally close after fetching remote peer lists.
+    // A small network can return no usable peerlist entries and remain forever
+    // at height 1 even though a canonical mainnet seed is reachable.
+    //
+    // Prefer the same VMRX-only built-in seed candidates as stable outbound
+    // connections when the operator did not specify peer flags. Do not touch
+    // --offline, testnet/stagenet, explicit priority/seed/add-peer choices or
+    // --add-exclusive-node (the latter intentionally disables all discovery).
+    // Normal network ID, block consensus and PoW checks still apply.
+    if (m_nettype == cryptonote::MAINNET && !m_offline &&
+        m_exclusive_peers.empty() && m_priority_peers.empty() &&
+        m_command_line_peers.empty() &&
+        command_line::is_arg_defaulted(vm, arg_p2p_seed_node))
+    {
+      const uint16_t default_port = cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT;
+      for (const auto& seed : get_seed_nodes(epee::net_utils::zone::public_))
+      {
+        auto addr = net::get_network_address(seed, default_port);
+        CHECK_AND_ASSERT_MES(addr && addr->get_zone() == epee::net_utils::zone::public_, false,
+                             "Invalid built-in VMRX public mainnet bootstrap peer: " << seed);
+        m_priority_peers.push_back(std::move(*addr));
+      }
+      MINFO("VMRX standalone mainnet bootstrap: using " << m_priority_peers.size()
+            << " built-in P2P peers as persistent priority connection candidates");
+    }
+
     if (!command_line::is_arg_defaulted(vm, arg_ban_list))
     {
       const std::string ban_list = command_line::get_arg(vm, arg_ban_list);

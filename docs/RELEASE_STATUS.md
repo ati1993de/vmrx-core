@@ -9,14 +9,16 @@
 
 These are operator observations, **not independent consensus/security validation**.
 
-## Still unresolved
+## Still unresolved (25 October 2026)
 
-1. Deterministic founder-seed recovery: the supplied seed restored to a different address.
-2. Full transfer/spend plus recipient confirmation across independent nodes.
-3. Difficulty adjustment, long-term PoW, difficulty manipulation and emissions audit.
-4. **Partially resolved:** native Windows v0.1.2-dev Core compiles, starts, matches Genesis and synchronized at least 201 live mainnet blocks in CI. Full tip sync, installation and long-running Windows P2P remain to be independently verified.
-5. Reproducible builds, signing and independent security review.
-6. Original Monero build/CI workflows require fork-specific adaptation.
+1. Deterministic founder seed recovery: the supplied seed reportedly restored a different address.
+2. End-to-end confirmed transfer and recipient spend across independently managed nodes.
+3. Comprehensive difficulty adjustment, PoW, emissions, and security audit.
+4. **Intermittent standalone P2P seed discovery:** native Windows v0.1.2 sync succeeded in one fresh first boot (height 1221, 2 peers, six hashes) but failed in another (five minutes at height 1, 0 peers). Transient seed handshakes to the canonical seed can complete and close without an enduring sync connection. A non-consensus persistent default-priority-peer fix is [under review](https://github.com/ati1993de/vmrx-core/pull/3) and is **not present in official v0.1.2**.
+5. Reproducible releases, signing, independent external security review and sustained long-running peer availability.
+6. Remaining Monero-derived legacy CLI strings and unrelated inherited build pipelines.
+
+**Verified:** The official Core v0.1.2 includes freshly compiled native Windows `vmrxd.exe` and Linux `vmrxd`. GitHub Actions validated both platforms' live synchronization through historical height 1193 with an explicit known VMRX P2P peer and exact canonical hashes of blocks 0, 1, 2, 10, 100 and 1193. Native Windows executable includes the official VMRX icon. Operator screenshots also show the bundled Windows GUI synchronizing with at least one VMRX peer. These observations do not establish independent wallet correctness.
 
 ## Release binary provenance
 
@@ -29,12 +31,12 @@ VMRX has a 200,000 VMRX **founder premine in block 1**, coinbase maturity 60 blo
 `v0.1.0` denotes the first public main-channel distribution, **not** a claim that the project is audited or safe to use for significant assets.
 
 
-## Status update: native Windows v0.1.2-dev (24 October 2026)
+## Release update: VMRX Core v0.1.2 (25 October 2026)
 
-Published Windows **v0.1.1** Core binary is downloadable but an operator observed its sole peer get banned while syncing at genesis height 1. It is not approved as a fully synced production node.
+The historic mainnet block-1 coinbase containing **200,000 VMRX founder premine plus the normal block subsidy** is accepted only when the fixed original chain and coinbase identities match. The v0.1.1 Windows Core failed to accept the original block and must not be used for current mainnet syncing; v0.1.2 fixed that incompatibility.
 
-The pending v0.1.2-dev candidate restores strict acceptance of the **single historically documented** VMRX mainnet block-1 founder premine, guarded by the original block hash, miner-tx hash, network/hardfork version, output amounts and subsidy. Windows GitHub Actions confirmed real P2P sync to **height 201 with one peer**, including the historic block-1 reward and hashes. The existing Windrose chain was not reset or altered.
+The [official v0.1.2 release](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.2) contains new native Windows and Linux binaries with SHA256SUMS. Both platforms' tested builds synchronized beyond height 1193 in separate CI clean-data tests, and the Windows executable is branded `vmrxd.exe` with an embedded VMRX logo. [Node & Miner v0.1.2](https://github.com/ati1993de/vmrx-node-miner/releases/tag/v0.1.2) bundles the checksum-verified exact official Windows Core archive and independently checks synchronization beyond historic block 1193.
 
-The new build is named `vmrxd.exe`, and GUI changes include truthful zero-peer isolation indication. Candidate peer addresses are `31.70.81.5:29780` (observed VMRX P2P) and `217.154.93.20:29780` (operator-supplied but not protocol-verified).
+**Standalone Windows bootstrap verified (25 October 2026):** The [additional CI test](../.github/workflows/standalone-bootstrap-windows.yml) downloaded the **unaltered official v0.1.2 Windows ZIP**, verified SHA-256 and started `vmrxd.exe` with a clean database **without any explicit peer arguments**. It connected to **2 VMRX peers**, synchronized to **height 1221** and checked six historical hashes (heights 0, 1, 2, 10, 100, 1193). A second independent [failing first-boot run](https://github.com/ati1993de/vmrx-core/actions/runs/40184857431) stayed at height 1 with 0 peers for five minutes, despite a successful transient handshake to `31.70.81.5:29780` and an unreachable alternate peer. Therefore automatic discovery is **intermittent in official v0.1.2**; a single successful run does not demonstrate reliability. [Successful CI run](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433) · [Windows troubleshooting](WINDOWS_STANDALONE_BOOTSTRAP.md).
 
-Both Linux and Windows Core/GUI v0.1.1 archives exist on GitHub. The **Linux Core v0.1.1 archive reused v0.1.0/RC2 bytes** rather than rebuilding from release source. The new Windows v0.1.2-dev must not be tagged until Windows and GUI build/test jobs are green and independent full-tip checks are considered. Founder wallet seed recovery and transfer confirmation remain unresolved.
+Founder wallet recovery, external transfer/spendability, and comprehensive independent security review remain unverified.

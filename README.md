@@ -8,7 +8,7 @@
 
 VMRX is an independent chain with its own genesis, network ID, address prefixes and P2P/RPC ports. It is **not** VargaMesh **VMESH**, the separate SHA-256d/AuxPoW network.
 
-> **Release warning:** This is an initial **public distribution**, not an independently security-audited, production-safe wallet system. Founder seed restoration and actual external spend have not been verified. A native Windows Core v0.1.1 archive is published, but Windows mainnet synchronization past block 0 has **failed a real operator test** and is NOT approved for production use. The Linux v0.1.1 archive reuses the previously tested RC2 Linux bytes unchanged. Read [verification status](docs/RELEASE_STATUS.md).
+> **Release status (25 October 2026):** The current supported release is **v0.1.2**, with natively rebuilt `vmrxd.exe` (Windows) and `vmrxd` (Linux). Fresh binaries successfully synchronized via real VMRX peers beyond height 1193 in GitHub CI, including all six canonical historical block hashes; the Windows Core also contains the official VMRX icon. **Older Windows v0.1.1 is broken for mainnet synchronization and must not be used.** This is **not** an independently security-audited wallet: founder seed restoration and real-world send/receive remain unverified. The independent Windows bootstrap tests found **intermittent standalone seed discovery**: one run synchronized to height 1221 with 2 peers and six exact historic hashes **without** any manual peer overrides, while another stayed at 0 peers for five minutes despite transient successful handshakes. [Mainnet bootstrap fix under review](https://github.com/ati1993de/vmrx-core/pull/3); **not yet included in the official v0.1.2 binary**. Read [verification status](docs/RELEASE_STATUS.md).
 
 ## Mainnet parameters
 
@@ -33,18 +33,18 @@ The first block distributed **200,000 VMRX to the founder**. It is not a zero-pr
 
 ## Installation / releases
 
-- [VMRX Core v0.1.1 — Windows and Linux](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.1) — archives and SHA256SUMS are available. Linux carries the original operator-tested RC2 binary bytes and is not independently rebuilt from the tag source.
-- **Windows Core daemon v0.1.1:** published and starts with correct genesis, but the Windows P2P sync was seen at height 1 with 0 peers after rejecting the real block-1 chain. Do not treat the Windows package as a fully syncing full node until a correction passes live block-1 and later-block tests.
-- **Wallet:** the forked wallet CLI still displays some upstream Monero strings. No new wallet safety guarantee is made by releasing it.
+- **Latest: [VMRX Core v0.1.2 — Windows and Linux](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.2)**. Official files: `VMRX-Core-windows-x86_64-v0.1.2.zip`, `VMRX-Core-linux-x86_64-v0.1.2.tar.gz`, and `SHA256SUMS`. SHA-256 verification is strongly recommended.
+- **Windows:** Extract the entire ZIP, preserving `vmrxd.exe`, `vmrx.ico` and accompanying DLLs. Start `vmrxd.exe` from the extracted folder; the first run creates a new blockchain database under the VMRX data directory. **Do not use v0.1.1** for P2P sync.
+- **Linux:** Extract the archive to a fresh folder and run `./vmrxd --rpc-bind-ip 127.0.0.1 --rpc-bind-port 29781` using an unprivileged account. The included Linux daemon is newly built from VMRX Core v0.1.2 source.
+- **GUI:** [VMRX Node & Miner v0.1.2](https://github.com/ati1993de/vmrx-node-miner/releases/tag/v0.1.2) bundles the **exact checksum-verified official Windows Core v0.1.2** and launches it only on user request. The Linux GUI requires separate Linux Core installation.
 
-### Linux node quick start
+### Mainnet peer discovery and diagnostics
 
-1. Download Core archive and `SHA256SUMS` from GitHub Releases; check the SHA256 hash before extraction.
-2. Extract as an unprivileged user. Keep its VMRX data directory separate from Monero and VMESH databases.
-3. Start the bundled `monerod` from the extracted `bin/` folder using mainnet arguments, `--rpc-bind-ip 127.0.0.1 --rpc-bind-port 29781 --p2p-bind-port 29780` and only known VMRX peers.
-4. Query local daemon `/get_info`, verify the genesis, then confirm the current chain with independent VMRX nodes. Preferred VMRX P2P candidates are `31.70.81.5:29780` (seen in a real VMRX handshake) and `217.154.93.20:29780` (operator-supplied, VMRX handshake unverified); both may be unavailable.
+The standalone Core embeds two VMRX-only bootstrap candidates, `31.70.81.5:29780` (operator-confirmed VMRX seed) and `217.154.93.20:29780` (operator-supplied; not independently protocol-verified). It does **not** use upstream Monero seeds. A newly started `vmrxd` can initially show `height 1/1; network tip unknown; ISOLATED - 0 peers`; this means **no network sync**, not a chain failure by itself. Give the daemon time to connect and request blocks, then use the console commands `status`, `print_cn`, `print_pl` and `sync_info` to inspect the peer state.
 
-More details: [Operator deployment](docs/OPERATOR_DEPLOY.md). **Do not expose unrestricted RPC publicly.** The inherited Monero daemon binary name does not make the fork interchangeable with Monero network data or peers.
+If zero peers persist, first ensure outbound TCP access to port 29780. Then restart the Core with an explicit preferred **VMRX** peer such as `--add-priority-node 31.70.81.5:29780` (not exclusive) and inspect its log file. The GUI uses preferred peers, so GUI synchronization alone would not have established default standalone discovery; the separate standalone Windows test **proved both a successful automatic bootstrap and a reproducible five-minute connection failure**. See the pending [persistent seed connection correction](https://github.com/ati1993de/vmrx-core/pull/3). See [Standalone Windows bootstrap diagnostics](docs/WINDOWS_STANDALONE_BOOTSTRAP.md).
+
+Avoid running two local daemons on the same machine using the same RPC (29781) or P2P (29780) listening ports. Their data directories must also be separate. Never reuse upstream Monero or VMESH blockchain databases or wallet keys. Expose RPC on loopback only; restrict firewalls to trusted inbound P2P. The Core daemon is not a complete wallet.
 
 ## Mining
 
@@ -65,7 +65,7 @@ One existing founder wallet displayed `200313.604591476068 VMRX` unlocked when s
 
 ### CI note
 
-Several inherited Monero CI workflows do not run correctly for this fork and are archived for later adaptation. A lightweight VMRX metadata and secrets-path workflow now runs on `main` and tags; **it is not a substitute for consensus unit/integration tests or a reproducible build pipeline**.
+Several inherited Monero CI workflows do not run correctly for this fork and are archived for later adaptation. Native VMRX Windows and Linux release pipelines now compile and validate actual mainnet block synchronization through historical height 1193. A separate Windows Core release-only smoke test checks fresh standalone seed discovery. These are functional tests, **not** substitutes for deterministic wallet recovery, end-to-end spend tests, independent consensus audit or reproducible-build verification.
 
 ## License and attribution
 
