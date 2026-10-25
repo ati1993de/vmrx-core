@@ -84,14 +84,14 @@ def curl_digest_probe(url: str, username: str, password: str) -> str:
             input=config, capture_output=True, text=True, timeout=12, check=False)
         import re
         trace = completed.stdout
-        match = re.search(r"Authorization: Digest ([^\\r\\n]+)", trace, re.IGNORECASE)
+        match = re.search(r"Authorization: Digest ([^\r\n]+)", trace, re.IGNORECASE)
         header_shape = "unavailable"
         if match:
             # Report ONLY field names, never digest response, nonce,
             # cnonce, username, credentials, or entire header.
-            names = re.findall(r"(?:^|,)\\s*([A-Za-z_]+)\\s*=", match.group(1))
+            names = re.findall(r"(?:^|,)\s*([A-Za-z_]+)\s*=", match.group(1))
             header_shape = ",".join(names)
-        status = re.search(r"CURL_STATUS:(\\d{3})", trace)
+        status = re.search(r"CURL_STATUS:(\d{3})", trace)
         return f"curl exit={completed.returncode}, HTTP={status.group(1) if status else '?'}, field names={header_shape}"
     except (OSError, subprocess.TimeoutExpired):
         return "curl probe transport failed"
