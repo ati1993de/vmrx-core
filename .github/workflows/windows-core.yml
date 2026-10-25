@@ -276,6 +276,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Install compatible native wallet Digest auth test client
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check requests
+
       - name: Smoke-test native Windows VMRX wallet create, open, mnemonic restore
         run: |
           set -euo pipefail
