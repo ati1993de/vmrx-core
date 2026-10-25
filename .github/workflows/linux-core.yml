@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            build-essential cmake pkg-config git python3 \
+            build-essential cmake pkg-config git python3 python3-requests \
             libboost-all-dev libssl-dev libzmq3-dev libsodium-dev \
             libunbound-dev libhidapi-dev libusb-1.0-0-dev \
             libreadline-dev libexpat1-dev libcurl4-openssl-dev \
@@ -71,6 +71,32 @@ jobs:
           test -x build-linux-release/bin/vmrxd
           build-linux-release/bin/vmrxd --version | tee linux-core-version.txt
           grep -q 'VMRX Core v0.1.3' linux-core-version.txt
+      - name: Build native Linux VMRX wallet RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build-linux-release --target wallet_rpc_server --parallel 2
+          test -x build-linux-release/bin/monero-wallet-rpc
+
+      - name: Preserve native Linux daemon and wallet for fast authentication diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-v013-wallet-linux-diagnostic-binaries
+          path: |
+            build-linux-release/bin/vmrxd
+            build-linux-release/bin/monero-wallet-rpc
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Smoke-test VMRX wallet create/open/seed restore on localhost
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          python3 scripts/test_wallet_rpc_recovery.py \
+            --daemon build-linux-release/bin/vmrxd \
+            --wallet-rpc build-linux-release/bin/monero-wallet-rpc
+
       - name: Verify real full-mainnet block acceptance and historical chain hash
         shell: bash
         timeout-minutes: 14
