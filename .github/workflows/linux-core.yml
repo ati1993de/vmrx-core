@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/linux-core.yml'
       - 'scripts/validate_mainnet_sync.py'
+      - 'scripts/test_wallet_rpc_recovery.py'
       - 'src/**'
       - 'cmake/**'
       - 'external/**'
@@ -18,6 +19,7 @@ on:
     paths:
       - '.github/workflows/linux-core.yml'
       - 'scripts/validate_mainnet_sync.py'
+      - 'scripts/test_wallet_rpc_recovery.py'
       - 'src/**'
       - 'cmake/**'
       - 'external/**'
@@ -77,6 +79,16 @@ jobs:
           set -euo pipefail
           cmake --build build-linux-release --target wallet_rpc_server --parallel 2
           test -x build-linux-release/bin/monero-wallet-rpc
+
+      - name: Preserve compiled VMRX Linux wallet binaries for fast follow-up RPC diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-native-wallet-linux-smoke-bin
+          path: |
+            build-linux-release/bin/vmrxd
+            build-linux-release/bin/monero-wallet-rpc
+          if-no-files-found: error
+          retention-days: 5
 
       - name: Smoke-test native VMRX create, open, seed restore and identity
         shell: bash
