@@ -1,12 +1,8 @@
 name: VMRX v0.1.2 standalone Windows bootstrap / zero CLI peer overrides
 on:
-  push:
-    branches: [fix/standalone-core-bootstrap-v012]
-  pull_request:
-    paths:
-      - .github/workflows/standalone-bootstrap-windows.yml
-      - README.md
-      - docs/RELEASE_STATUS.md
+  # Historical v0.1.2 release diagnostic only. v0.1.2 bootstrap is known
+  # intermittently broken, so do not turn its flaky result into a required
+  # branch/PR check for v0.1.3. Modern native Windows CI tests the NEW code.
   workflow_dispatch:
 
 permissions:
