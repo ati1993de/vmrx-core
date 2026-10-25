@@ -14,7 +14,7 @@ These are operator observations, **not independent consensus/security validation
 1. Deterministic founder seed recovery: the supplied seed reportedly restored a different address.
 2. End-to-end confirmed transfer and recipient spend across independently managed nodes.
 3. Comprehensive difficulty adjustment, PoW, emissions, and security audit.
-4. **Standalone Windows bootstrap without manually supplied peers:** still being tested. A new Windows Core can show `height 1/1; ISOLATED; 0 peers` during startup. The GUI connects through a named priority peer, which is a separate path and does not validate seed-only discovery.
+4. **Sustained P2P availability and seed redundancy:** the released v0.1.2 Windows Core independently passed *automatic* standalone seed discovery with no explicit peer override (height 1221, 2 peers, six exact historic hashes). Continued seed reachability over time and global peer diversity are not guaranteed.
 5. Reproducible releases, signing, independent external security review and sustained long-running peer availability.
 6. Remaining Monero-derived legacy CLI strings and unrelated inherited build pipelines.
 
@@ -37,6 +37,6 @@ The historic mainnet block-1 coinbase containing **200,000 VMRX founder premine 
 
 The [official v0.1.2 release](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.2) contains new native Windows and Linux binaries with SHA256SUMS. Both platforms' tested builds synchronized beyond height 1193 in separate CI clean-data tests, and the Windows executable is branded `vmrxd.exe` with an embedded VMRX logo. [Node & Miner v0.1.2](https://github.com/ati1993de/vmrx-node-miner/releases/tag/v0.1.2) bundles the checksum-verified exact official Windows Core archive and independently checks synchronization beyond historic block 1193.
 
-**Remaining issue under investigation:** a standalone Windows Core launched without explicit peer parameters was observed at height 1 with zero peers shortly after startup. Its C++ source includes two VMRX-only built-in seed candidates; the established CI passes `--add-exclusive-node 31.70.81.5:29780`. The additional [standalone Windows bootstrap test](../.github/workflows/standalone-bootstrap-windows.yml) downloads the released Core, verifies its SHA-256, and requires real network synchronization **without specifying any peer parameter**. A momentary zero-peer state is insufficient to conclude a defect. See [Windows troubleshooting](WINDOWS_STANDALONE_BOOTSTRAP.md).
+**Standalone Windows bootstrap verified (25 October 2026):** The [additional CI test](../.github/workflows/standalone-bootstrap-windows.yml) downloaded the **unaltered official v0.1.2 Windows ZIP**, verified SHA-256 and started `vmrxd.exe` with a clean database **without any explicit peer arguments**. It connected to **2 VMRX peers**, synchronized to **height 1221** and checked six historical hashes (heights 0, 1, 2, 10, 100, 1193). The initial operator screenshot showed 0 peers approximately ten seconds after startup: this alone does not establish a defect. [Successful CI run](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433) · [Windows troubleshooting](WINDOWS_STANDALONE_BOOTSTRAP.md).
 
 Founder wallet recovery, external transfer/spendability, and comprehensive independent security review remain unverified.

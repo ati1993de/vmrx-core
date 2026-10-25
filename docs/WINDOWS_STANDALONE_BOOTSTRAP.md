@@ -31,7 +31,7 @@ Stop the standalone process gracefully by typing `exit`, then retry it using the
 
 ## What is proven
 
-GitHub Actions' v0.1.2 Windows and Linux Core pipelines verified fresh full-node P2P sync to the original mainnet through canonical height 1193, but those tests specified a known peer on the command line. The separate `standalone-bootstrap-windows.yml` workflow tests the **official released Windows ZIP**, verified by SHA-256, with **zero explicit peer overrides** and a clean database; it checks at least one peer and exact historic hashes after syncing. This is a separate capability and should not be claimed as verified until that check is green.
+GitHub Actions' v0.1.2 Windows and Linux Core pipelines verified fresh full-node P2P sync to the original mainnet through canonical height 1193, but those tests specified a known peer on the command line. The separate `standalone-bootstrap-windows.yml` workflow tests the **official released Windows ZIP**, verified by SHA-256, with **zero explicit peer overrides** and a clean database; it checks at least one peer and exact historic hashes after syncing. **This separately passed on 25 October 2026:** the unmodified official Core ZIP discovered 2 peers with no P2P peer override, reached height 1221 on its own, and matched all six canonical historical hashes. [Green standalone test](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433). A screenshot taken shortly after starting with zero peers is not proof of a bootstrapping defect.
 
 The `update` interactive daemon command requires a parameter (for example `update check`), not a bare `update`. That error is unrelated to P2P connection establishment.
 
