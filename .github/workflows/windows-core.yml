@@ -214,8 +214,18 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 2
         run: |
           set -euo pipefail
-          cmake --build build/release --target wallet_rpc_server --parallel 2 2>&1 | tee buildlogs/windows-wallet-rpc-build.log
-          test -s build/release/bin/monero-wallet-rpc.exe
+          # The official make release-static-win64-daemon creates its CMake tree
+          # under build/<MSYSTEM>/.../release, not at build/release.
+          mapfile -t caches < <(find build -type f -name CMakeCache.txt -path '*/release/CMakeCache.txt' | sort)
+          if [ "${#caches[@]}" -ne 1 ]; then
+            printf 'Expected one Windows release CMake tree, found %s:\\n' "${#caches[@]}"
+            printf '%s\\n' "${caches[@]}"
+            exit 1
+          fi
+          build_dir="$(dirname "${caches[0]}")"
+          echo "Compiling native wallet RPC from $build_dir"
+          cmake --build "$build_dir" --target wallet_rpc_server --parallel 2 2>&1 | tee buildlogs/windows-wallet-rpc-build.log
+          test -s "$build_dir/bin/monero-wallet-rpc.exe"
 
       - name: Show compilation errors on failure
         if: failure()
