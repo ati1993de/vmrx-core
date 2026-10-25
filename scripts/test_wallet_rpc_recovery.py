@@ -160,6 +160,16 @@ def run(daemon_binary: Path, wallet_binary: Path):
                 wait_ready(lambda: call("get_version"), wallet, limit=22)
             except RuntimeError:
                 print("Digest interoperability diagnostic: " + curl_digest_probe(wallet_url, user, password), flush=True)
+                try:
+                    import requests
+                    probe = requests.post(wallet_url,
+                        json={"jsonrpc": "2.0", "id": "requests-digest", "method": "get_version"},
+                        auth=requests.auth.HTTPDigestAuth(user, password), timeout=8)
+                    print(f"Independent requests Digest diagnostic: HTTP={probe.status_code}", flush=True)
+                except ImportError:
+                    print("Independent requests Digest probe unavailable", flush=True)
+                except Exception:
+                    print("Independent requests Digest probe failed (transport)", flush=True)
                 raise
             call("create_wallet", {"filename": "test_original",
                                    "password": "test-password-only-no-funds",
