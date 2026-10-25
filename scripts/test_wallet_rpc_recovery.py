@@ -41,6 +41,24 @@ def rpc(url, method, params=None, opener=None, timeout=6):
     return data.get("result", data)
 
 
+def curl_digest_probe(url: str, username: str, password: str) -> str:
+    """Safe compatibility probe: no secret in shell args, output or CI logs."""
+    import shutil
+    if not shutil.which("curl"):
+        return "curl unavailable"
+    body = json.dumps({"jsonrpc": "2.0", "id": "probe", "method": "get_version"})
+    config = f'digest\\nuser = "{username}:{password}"\\n'
+    try:
+        completed = subprocess.run(
+            ["curl", "--config", "-", "--silent", "--show-error", "--max-time", "8",
+             "--output", os.devnull, "--write-out", "%{http_code}",
+             "--header", "Content-Type: application/json", "--data-binary", body, url],
+            input=config, capture_output=True, text=True, timeout=12, check=False)
+        return f"curl exit={completed.returncode}, HTTP={completed.stdout.strip()[:3]}"
+    except (OSError, subprocess.TimeoutExpired):
+        return "curl probe transport failed"
+
+
 def wait_ready(fn, proc, limit=45):
     last_error = None
     until = time.monotonic() + limit
@@ -100,7 +118,11 @@ def run(daemon_binary: Path, wallet_binary: Path):
             call = lambda method, params=None: rpc(wallet_url, method, params, opener)
             # An unauthenticated request may receive an HTTP 401, before the
             # wallet engine is ready. Only get_version is wallet-independent.
-            wait_ready(lambda: call("get_version"), wallet)
+            try:
+                wait_ready(lambda: call("get_version"), wallet)
+            except RuntimeError:
+                print("Digest interoperability diagnostic: " + curl_digest_probe(wallet_url, user, password), flush=True)
+                raise
             call("create_wallet", {"filename": "test_original",
                                    "password": "test-password-only-no-funds",
                                    "language": "English"})
