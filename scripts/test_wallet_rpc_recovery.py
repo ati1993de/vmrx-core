@@ -79,10 +79,20 @@ def curl_digest_probe(url: str, username: str, password: str) -> str:
     try:
         completed = subprocess.run(
             ["curl", "--config", "-", "--silent", "--show-error", "--max-time", "8",
-             "--output", os.devnull, "--write-out", "%{http_code}",
+             "--trace-ascii", "-", "--output", os.devnull, "--write-out", "CURL_STATUS:%{http_code}",
              "--header", "Content-Type: application/json", "--data-binary", body, url],
             input=config, capture_output=True, text=True, timeout=12, check=False)
-        return f"curl exit={completed.returncode}, HTTP={completed.stdout.strip()[:3]}"
+        import re
+        trace = completed.stdout
+        match = re.search(r"Authorization: Digest ([^\\r\\n]+)", trace, re.IGNORECASE)
+        header_shape = "unavailable"
+        if match:
+            # Report ONLY field names, never digest response, nonce,
+            # cnonce, username, credentials, or entire header.
+            names = re.findall(r"(?:^|,)\\s*([A-Za-z_]+)\\s*=", match.group(1))
+            header_shape = ",".join(names)
+        status = re.search(r"CURL_STATUS:(\\d{3})", trace)
+        return f"curl exit={completed.returncode}, HTTP={status.group(1) if status else '?'}, field names={header_shape}"
     except (OSError, subprocess.TimeoutExpired):
         return "curl probe transport failed"
 
@@ -147,7 +157,7 @@ def run(daemon_binary: Path, wallet_binary: Path):
             # An unauthenticated request may receive an HTTP 401, before the
             # wallet engine is ready. Only get_version is wallet-independent.
             try:
-                wait_ready(lambda: call("get_version"), wallet)
+                wait_ready(lambda: call("get_version"), wallet, limit=22)
             except RuntimeError:
                 print("Digest interoperability diagnostic: " + curl_digest_probe(wallet_url, user, password), flush=True)
                 raise
