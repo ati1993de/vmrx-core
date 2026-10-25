@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import requests
 import urllib.error
 
 GENESIS = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
@@ -52,18 +53,26 @@ class NativeWalletDigestAuthHandler(urllib.request.HTTPDigestAuthHandler):
 
 def rpc(url, method, params=None, opener=None, timeout=6):
     payload = {"jsonrpc": "2.0", "id": "test", "method": method, "params": params or {}}
-    request = urllib.request.Request(
-        url, method="POST",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with (opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))).open(request, timeout=timeout) as response:
-            data = json.load(response)
-    except urllib.error.HTTPError as exc:
-        # Diagnostic must never reveal credentials, seeds, or response bodies.
-        auth_scheme = (exc.headers.get('WWW-Authenticate', '').split(' ', 1)[0] or 'none')
-        raise RuntimeError(f'RPC {method} HTTP {exc.code}; authentication scheme={auth_scheme}') from None
+    if isinstance(opener, requests.Session):
+        try:
+            response = opener.post(url, json=payload, timeout=timeout)
+            if response.status_code != 200:
+                raise RuntimeError(f"RPC {method} HTTP {response.status_code} (authenticated session)")
+            data = response.json()
+        except requests.RequestException:
+            raise RuntimeError(f"RPC {method} transport failed") from None
+        except ValueError:
+            raise RuntimeError(f"RPC {method} invalid JSON response") from None
+    else:
+        request = urllib.request.Request(
+            url, method="POST", data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=timeout) as response:
+                data = json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"RPC {method} HTTP {exc.code}") from None
     if data.get("error"):
         raise RuntimeError(f"RPC {method} rejected: code {data['error'].get('code', '?')}")
     return data.get("result", data)
@@ -149,11 +158,10 @@ def run(daemon_binary: Path, wallet_binary: Path):
                 "--trusted-daemon", "--log-level", "0",
             ], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, creationflags=flags)
-            auth = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-            auth.add_password(None, wallet_url, user, password)
-            opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({}), NativeWalletDigestAuthHandler(auth))
-            call = lambda method, params=None: rpc(wallet_url, method, params, opener)
+            session = requests.Session()
+            session.trust_env = False  # absolutely no HTTP/HTTPS proxy for local secret wallet RPC
+            session.auth = requests.auth.HTTPDigestAuth(user, password)
+            call = lambda method, params=None: rpc(wallet_url, method, params, session)
             # An unauthenticated request may receive an HTTP 401, before the
             # wallet engine is ready. Only get_version is wallet-independent.
             try:
