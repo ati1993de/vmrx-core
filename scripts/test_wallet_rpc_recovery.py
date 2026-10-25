@@ -22,6 +22,21 @@ import urllib.error
 GENESIS = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
 
 
+class NativeWalletDigestAuthHandler(urllib.request.HTTPDigestAuthHandler):
+    """Monero-derived RPC accepts algorithm=MD5 token, not quoted algorithm.
+
+    Python urllib emits algorithm="MD5" contrary to this fork's strict HTTP
+    digest parser. Keep normal digest nonce, qop and response computation.
+    """
+
+    def get_authorization(self, req, chal):
+        result = super().get_authorization(req, chal)
+        if result is not None:
+            result = result.replace('algorithm="MD5"', 'algorithm=MD5').replace(
+                'algorithm="MD5-sess"', 'algorithm=MD5-sess')
+        return result
+
+
 def rpc(url, method, params=None, opener=None, timeout=6):
     payload = {"jsonrpc": "2.0", "id": "test", "method": method, "params": params or {}}
     request = urllib.request.Request(
@@ -114,7 +129,7 @@ def run(daemon_binary: Path, wallet_binary: Path):
             auth = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             auth.add_password(None, wallet_url, user, password)
             opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({}), urllib.request.HTTPDigestAuthHandler(auth))
+                urllib.request.ProxyHandler({}), NativeWalletDigestAuthHandler(auth))
             call = lambda method, params=None: rpc(wallet_url, method, params, opener)
             # An unauthenticated request may receive an HTTP 401, before the
             # wallet engine is ready. Only get_version is wallet-independent.
