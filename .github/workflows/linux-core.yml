@@ -33,7 +33,7 @@ jobs:
   linux-mainnet:
     name: Build Linux vmrxd and validate actual historic mainnet
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 70
     steps:
       - name: Checkout exactly the tested Core source with submodules
         uses: actions/checkout@v4
@@ -71,6 +71,22 @@ jobs:
           test -x build-linux-release/bin/vmrxd
           build-linux-release/bin/vmrxd --version | tee linux-core-version.txt
           grep -q 'VMRX Core v0.1.2' linux-core-version.txt
+      - name: Build native Linux wallet-RPC server
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build-linux-release --target wallet_rpc_server --parallel 2
+          test -x build-linux-release/bin/monero-wallet-rpc
+
+      - name: Smoke-test native VMRX create, open, seed restore and identity
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          python3 scripts/test_wallet_rpc_recovery.py \
+            --daemon build-linux-release/bin/vmrxd \
+            --wallet-rpc build-linux-release/bin/monero-wallet-rpc
+
       - name: Verify real full-mainnet block acceptance and historical chain hash
         shell: bash
         timeout-minutes: 14
@@ -86,6 +102,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist/linux
           install -m 0755 build-linux-release/bin/vmrxd dist/linux/vmrxd
+          install -m 0755 build-linux-release/bin/monero-wallet-rpc dist/linux/monero-wallet-rpc
           cp LICENSE dist/linux/LICENSE
           cat > dist/linux/README-LINUX.txt <<'EOF'
           VMRX Core v0.1.2 — independent RandomX mainnet daemon
@@ -99,13 +116,14 @@ jobs:
           VMRX P2P: 29780/TCP; RPC: 29781/TCP (keep bound to 127.0.0.1).
           Do not reuse Monero or VMESH node/wallet databases or keys.
 
-          This is a node, NOT a complete wallet. Wallet seed restoration, real
-          external transfers, full tip consensus and independent audit are not
+          This contains a native wallet-RPC candidate, NOT a security-audited wallet. Real
+          external transfers, historic founder recovery and independent audit are not
           established by the CI test. Monero license attribution is retained.
           EOF
           tar -C dist/linux -czf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz .
           (cd dist && sha256sum VMRX-Core-linux-x86_64-v0.1.2.tar.gz > SHA256SUMS)
           tar -tzf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+          tar -tzf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz | grep -Eq "^\\./monero-wallet-rpc$"
           (cd dist && sha256sum -c SHA256SUMS)
           ls -lh dist
       - name: Upload live sync logs on failure for diagnosis
