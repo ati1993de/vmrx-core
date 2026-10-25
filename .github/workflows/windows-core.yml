@@ -209,6 +209,14 @@ jobs:
           mkdir -p buildlogs
           make release-static-win64-daemon -j2 2>&1 | tee buildlogs/windows-daemon-build.log
 
+      - name: Compile fork-specific native Windows wallet RPC
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 2
+        run: |
+          set -euo pipefail
+          cmake --build build/release --target wallet_rpc_server --parallel 2 2>&1 | tee buildlogs/windows-wallet-rpc-build.log
+          test -s build/release/bin/monero-wallet-rpc.exe
+
       - name: Show compilation errors on failure
         if: failure()
         run: |
@@ -251,7 +259,15 @@ jobs:
           done
           find package/core -maxdepth 1 -type f -printf '%f\\n' | sort
           test -s package/core/vmrxd.exe
+          test -s package/core/monero-wallet-rpc.exe
           test -s package/core/vmrx.ico
+
+      - name: Verify native wallet create-open-seed-restore with Windows RPC
+        run: |
+          set -euo pipefail
+          python scripts/test_wallet_rpc_recovery.py \
+            --daemon package/core/vmrxd.exe \
+            --wallet-rpc package/core/monero-wallet-rpc.exe
 
       - name: Verify Windows executable is a real PE program
         run: |
