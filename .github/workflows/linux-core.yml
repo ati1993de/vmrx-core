@@ -1,0 +1,129 @@
+name: VMRX Core - Linux native full-node build and live mainnet sync
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/linux-core.yml'
+      - 'scripts/validate_mainnet_sync.py'
+      - 'src/**'
+      - 'cmake/**'
+      - 'external/**'
+      - 'contrib/**'
+      - 'CMakeLists.txt'
+      - 'Makefile'
+      - '.gitmodules'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/linux-core.yml'
+      - 'scripts/validate_mainnet_sync.py'
+      - 'src/**'
+      - 'cmake/**'
+      - 'external/**'
+      - 'contrib/**'
+      - 'CMakeLists.txt'
+      - 'Makefile'
+      - '.gitmodules'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-mainnet:
+    name: Build Linux vmrxd and validate actual historic mainnet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exactly the tested Core source with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install native Linux Core build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake pkg-config git python3 \
+            libboost-all-dev libssl-dev libzmq3-dev libsodium-dev \
+            libunbound-dev libhidapi-dev libusb-1.0-0-dev \
+            libreadline-dev libexpat1-dev libcurl4-openssl-dev \
+            libprotobuf-dev protobuf-compiler libudev-dev \
+            libunwind-dev liblzma-dev
+      - name: Configure Linux daemon from VMRX Core fork
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-linux-release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=OFF \
+            -DUSE_DEVICE_TREZOR=OFF \
+            -DSTATIC=OFF \
+            -DBUILD_64=ON
+      - name: Compile Linux vmrxd
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build-linux-release --target daemon --parallel 2
+          test -x build-linux-release/bin/vmrxd
+          build-linux-release/bin/vmrxd --version | tee linux-core-version.txt
+          grep -q 'VMRX Core v0.1.2' linux-core-version.txt
+      - name: Verify real full-mainnet block acceptance and historical chain hash
+        shell: bash
+        timeout-minutes: 14
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_mainnet_sync.py \
+            --daemon build-linux-release/bin/vmrxd \
+            --seconds 600 \
+            --log buildlogs/linux-live-sync.log
+      - name: Package new Linux Core binary compiled from the same commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/linux
+          install -m 0755 build-linux-release/bin/vmrxd dist/linux/vmrxd
+          cp LICENSE dist/linux/LICENSE
+          cat > dist/linux/README-LINUX.txt <<'EOF'
+          VMRX Core v0.1.2 — independent RandomX mainnet daemon
+          Native Linux x86_64 binary: vmrxd.
+          Compiled from the repository source in this CI run; unlike v0.1.1
+          this is NOT a copy of the old RC2/Linux binary.
+          The GitHub CI synced a freshly initialized daemon from a real P2P
+          VMRX peer beyond block 1193 and checked six historical block hashes.
+
+          Run as an unprivileged service user with a VMRX-only data directory.
+          VMRX P2P: 29780/TCP; RPC: 29781/TCP (keep bound to 127.0.0.1).
+          Do not reuse Monero or VMESH node/wallet databases or keys.
+
+          This is a node, NOT a complete wallet. Wallet seed restoration, real
+          external transfers, full tip consensus and independent audit are not
+          established by the CI test. Monero license attribution is retained.
+          EOF
+          tar -C dist/linux -czf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz .
+          (cd dist && sha256sum VMRX-Core-linux-x86_64-v0.1.2.tar.gz > SHA256SUMS)
+          tar -tzf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+          (cd dist && sha256sum -c SHA256SUMS)
+          ls -lh dist
+      - name: Upload live sync logs on failure for diagnosis
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-linux-v012-sync-diagnostics
+          path: |
+            buildlogs/
+            linux-core-version.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload newly built Linux v0.1.2 distribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-core-linux-v012
+          path: |
+            dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30

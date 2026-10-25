@@ -1,0 +1,3 @@
+// Native Windows executable icon: official owner-provided VMRX artwork.
+// Configured by CMake (absolute source image path, forward slashes).
+1 ICON "@VMRX_ICON_RESOURCE_PATH@"

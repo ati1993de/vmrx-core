@@ -71,5 +71,24 @@ target_link_libraries(daemon
     ${Blocks})
 set_property(TARGET daemon
   PROPERTY
-    OUTPUT_NAME "monerod")
+    OUTPUT_NAME "vmrxd")
+# On native Windows the official VMRX logo must be embedded in vmrxd.exe.
+# Merely packaging a PNG/ICO beside the executable does not set Explorer's
+# executable icon.  The generated resource is compiled by MinGW windres.
+if(WIN32 AND MINGW)
+  set(VMRX_ICON_RESOURCE_PATH "${CMAKE_SOURCE_DIR}/assets/vmrx.ico")
+  if(NOT EXISTS "${VMRX_ICON_RESOURCE_PATH}")
+    message(FATAL_ERROR
+      "VMRX Windows icon missing: generate it from the official transparent PNG "
+      "using python scripts/build_windows_icon.py (requires Pillow) before cmake.")
+  endif()
+  enable_language(RC)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/vmrx.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/vmrx.rc"
+    @ONLY
+  )
+  target_sources(daemon PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/vmrx.rc")
+endif()
+
 install(TARGETS daemon DESTINATION bin)

@@ -514,11 +514,22 @@ bool t_rpc_command_executor::show_status() {
     }
   }
 
+  // If there is no active peer, we cannot independently know the network
+  // height. A fresh node at height 1 previously showed 1/1 (100%) here even
+  // while it was disconnected from VMRX mainnet. Never call that synced.
+  const bool no_peers = ires.outgoing_connections_count == 0 &&
+                        ires.incoming_connections_count == 0;
   std::stringstream str;
-  str << boost::format("Height: %llu/%llu (%.1f%%) on %s%s, %s, net hash %s, v%u%s, %u(out)+%u(in) connections")
-    % (unsigned long long)ires.height
-    % (unsigned long long)net_height
-    % get_sync_percentage(ires)
+  if (no_peers)
+    str << boost::format("Height: %llu/? (network tip unknown; ISOLATED - 0 peers)")
+      % (unsigned long long)ires.height;
+  else
+    str << boost::format("Height: %llu/%llu (%.1f%%)")
+      % (unsigned long long)ires.height
+      % (unsigned long long)net_height
+      % get_sync_percentage(ires);
+
+  str << boost::format(" on %s%s, %s, net hash %s, v%u%s, %u(out)+%u(in) connections")
     % (ires.testnet ? "testnet" : ires.stagenet ? "stagenet" : "mainnet")
     % bootstrap_msg
     % (!has_mining_info ? "mining info unavailable" : mining_busy ? "syncing" : mres.active ? ( ( mres.is_background_mining_enabled ? "smart " : "" ) + std::string("mining at ") + get_mining_speed(mres.speed)) : "not mining")
@@ -1463,10 +1474,10 @@ bool t_rpc_command_executor::print_status()
   bool daemon_is_alive = m_rpc_client->check_connection();
 
   if(daemon_is_alive) {
-    tools::success_msg_writer() << "monerod is running";
+    tools::success_msg_writer() << "VMRX Core is running";
   }
   else {
-    tools::fail_msg_writer() << "monerod is NOT running";
+    tools::fail_msg_writer() << "VMRX Core is NOT running";
   }
 
   return true;

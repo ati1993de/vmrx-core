@@ -2869,7 +2869,7 @@ skip:
         m_core.safesyncmode(true);
       if (target == 0 && context.m_state > cryptonote_connection_context::state_before_handshake && !m_stopping)
       {
-        MCWARNING("global", "monerod is now disconnected from the network");
+        MCWARNING("global", "VMRX Core is now disconnected from the network");
         m_ask_for_txpool_complement = true;
       }
     }

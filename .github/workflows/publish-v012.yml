@@ -1,0 +1,77 @@
+name: Publish verified VMRX Core v0.1.2
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-v012.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: vmrx-core-v012-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_REPO: ati1993de/vmrx-core
+      GH_TOKEN: ${{ github.token }}
+      VMRX_SOURCE_SHA: f36808895e2bb9b21f5d2bb776f299773e90a693
+      WINDOWS_RUN_ID: '40182401716'
+      LINUX_RUN_ID: '40182401733'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exactly CI-tested release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s RELEASE_NOTES_v0.1.2.md
+          git cat-file -e "${VMRX_SOURCE_SHA}^{commit}"
+          git diff --exit-code "${VMRX_SOURCE_SHA}" HEAD -- src external cmake contrib CMakeLists.txt Makefile .gitmodules assets scripts/build_windows_icon.py scripts/validate_mainnet_sync.py
+          for run in "${WINDOWS_RUN_ID}" "${LINUX_RUN_ID}"; do
+            sha="$(gh api "repos/${GH_REPO}/actions/runs/${run}" --jq '.head_sha')"
+            status="$(gh api "repos/${GH_REPO}/actions/runs/${run}" --jq '.status')"
+            result="$(gh api "repos/${GH_REPO}/actions/runs/${run}" --jq '.conclusion')"
+            echo "CI ${run}: ${sha} ${status} ${result}"
+            test "${sha}" = "${VMRX_SOURCE_SHA}"
+            test "${status}" = completed
+            test "${result}" = success
+          done
+      - name: Download tested Linux and Windows binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p stage/windows stage/linux release
+          gh run download "${WINDOWS_RUN_ID}" -R "${GH_REPO}" --name vmrx-windows-core-buildtest --dir stage/windows
+          gh run download "${LINUX_RUN_ID}" -R "${GH_REPO}" --name vmrx-core-linux-v012 --dir stage/linux
+          test -s stage/windows/VMRX-Core-windows-x86_64-buildtest.zip
+          (cd stage/windows && sha256sum -c SHA256SUMS)
+          unzip -t stage/windows/VMRX-Core-windows-x86_64-buildtest.zip
+          unzip -Z1 stage/windows/VMRX-Core-windows-x86_64-buildtest.zip | grep -Eq '(^|/)vmrxd\.exe$'
+          unzip -Z1 stage/windows/VMRX-Core-windows-x86_64-buildtest.zip | grep -Eq '(^|/)vmrx\.ico$'
+          test -s stage/linux/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+          (cd stage/linux && sha256sum -c SHA256SUMS)
+          tar -tzf stage/linux/VMRX-Core-linux-x86_64-v0.1.2.tar.gz | grep -Eq '^\./vmrxd$'
+          cp stage/windows/VMRX-Core-windows-x86_64-buildtest.zip release/VMRX-Core-windows-x86_64-v0.1.2.zip
+          cp stage/linux/VMRX-Core-linux-x86_64-v0.1.2.tar.gz release/
+      - name: Check new tag and new SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.1.2 -R "${GH_REPO}" >/dev/null 2>&1 || gh api "repos/${GH_REPO}/git/ref/tags/v0.1.2" >/dev/null 2>&1; then
+            echo 'v0.1.2 already exists - never overwrite'; exit 1
+          fi
+          (cd release && sha256sum VMRX-Core-* > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - name: Publish official v0.1.2 Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v0.1.2 release/VMRX-Core-windows-x86_64-v0.1.2.zip release/VMRX-Core-linux-x86_64-v0.1.2.tar.gz release/SHA256SUMS --target "${GITHUB_SHA}" -R "${GH_REPO}" --latest --title 'VMRX Core v0.1.2 — Windows + Linux mainnet repair' --notes-file RELEASE_NOTES_v0.1.2.md
+          gh release view v0.1.2 -R "${GH_REPO}"

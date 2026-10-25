@@ -731,8 +731,12 @@ namespace nodetool
   template<class t_payload_net_handler>
   std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(epee::net_utils::zone zone)
   {
-    (void)zone;
-    return {};
+    // Never seed testnet/stagenet or anonymous zones with mainnet IPs.
+    // Invalid or offline candidates fail at handshake; a successful TCP
+    // connection alone is not proof of a VMRX-compatible network node.
+    if (m_nettype != cryptonote::MAINNET || zone != epee::net_utils::zone::public_)
+      return {};
+    return {m_seed_nodes_list.begin(), m_seed_nodes_list.end()};
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
