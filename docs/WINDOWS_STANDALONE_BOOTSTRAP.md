@@ -1,10 +1,10 @@
-# VMRX Core v0.1.2 — standalone Windows network troubleshooting
+# VMRX Core v0.1.3 — standalone Windows network troubleshooting
 
 **Purpose:** Distinguish the expected short initial state `height 1/1, ISOLATED, 0 peers` from persistent failure to discover any VMRX peer. Neither state means block 1 has been validated until the local chain height grows beyond 1.
 
 ## Confirm the current file and run independently
 
-Get the official [VMRX Core v0.1.2 Windows archive](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.2), verify SHA256SUMS and extract it completely. Open PowerShell in the extracted folder. The binary must be named `vmrxd.exe` and must identify itself as `VMRX Core v0.1.2`.
+Get the official [VMRX Core v0.1.3 Windows archive](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3), verify SHA256SUMS and extract it completely. Open PowerShell in the extracted folder. The binary must be named `vmrxd.exe` and must identify itself as `VMRX Core v0.1.3`.
 
 If VMRX Node & Miner is already open, its daemon may be listening on ports 29780 and 29781. For a completely independent test use **29880** for local P2P and **29881** for local RPC, with a separate data directory. Do not reuse a GUI-owned or production blockchain database:
 
@@ -31,7 +31,7 @@ Stop the standalone process gracefully by typing `exit`, then retry it using the
 
 ## What is proven
 
-GitHub Actions' v0.1.2 Windows and Linux Core pipelines verified fresh full-node P2P sync to the original mainnet through canonical height 1193, but those tests specified a known peer on the command line. The separate `standalone-bootstrap-windows.yml` workflow tests the **official released Windows ZIP**, verified by SHA-256, with **zero explicit peer overrides** and a clean database; it checks at least one peer and exact historic hashes after syncing. **Two outcomes on 25 October 2026:** one independently tested official Core ZIP boot discovered 2 peers, reached height 1221 and matched all six historical hashes ([passing run](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433)). Another identically configured first boot remained at 0 peers for five minutes despite successful transient seed handshakes ([failing run](https://github.com/ati1993de/vmrx-core/actions/runs/40184857431)). This confirms a **seed discovery reliability issue**, not a block-1 consensus rejection. A proposed [non-consensus persistent bootstrap fix](https://github.com/ati1993de/vmrx-core/pull/3) is under test and not yet released.
+GitHub Actions' v0.1.2 Windows and Linux Core pipelines verified fresh full-node P2P sync to the original mainnet through canonical height 1193, but those tests specified a known peer on the command line. The separate `standalone-bootstrap-windows.yml` workflow tests the **official released Windows ZIP**, verified by SHA-256, with **zero explicit peer overrides** and a clean database; it checks at least one peer and exact historic hashes after syncing. **Two outcomes on 25 October 2026:** one independently tested official Core ZIP boot discovered 2 peers, reached height 1221 and matched all six historical hashes ([passing run](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433)). Another identically configured first boot remained at 0 peers for five minutes despite successful transient seed handshakes ([failing run](https://github.com/ati1993de/vmrx-core/actions/runs/40184857431)). This confirms a **seed discovery reliability issue**, not a block-1 consensus rejection. The exact first-boot regression was fixed in [VMRX Core v0.1.3](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3); [native Windows CI](https://github.com/ati1993de/vmrx-core/actions/runs/40187138005) passed two independent clean starts to height 1239 without custom peer flags. Earlier v0.1.2 measurements in this section remain historical.
 
 The `update` interactive daemon command requires a parameter (for example `update check`), not a bare `update`. That error is unrelated to P2P connection establishment.
 

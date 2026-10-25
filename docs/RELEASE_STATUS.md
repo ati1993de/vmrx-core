@@ -1,4 +1,4 @@
-# VMRX Core release status — legacy v0.1.0 and current development
+# VMRX Core release status — v0.1.3 mainnet maintenance release
 
 ## Verified only by operator logs (24 October 2026)
 
@@ -14,7 +14,7 @@ These are operator observations, **not independent consensus/security validation
 1. Deterministic founder seed recovery: the supplied seed reportedly restored a different address.
 2. End-to-end confirmed transfer and recipient spend across independently managed nodes.
 3. Comprehensive difficulty adjustment, PoW, emissions, and security audit.
-4. **Intermittent standalone P2P seed discovery:** native Windows v0.1.2 sync succeeded in one fresh first boot (height 1221, 2 peers, six hashes) but failed in another (five minutes at height 1, 0 peers). Transient seed handshakes to the canonical seed can complete and close without an enduring sync connection. A non-consensus persistent default-priority-peer fix is [under review](https://github.com/ati1993de/vmrx-core/pull/3) and is **not present in official v0.1.2**.
+4. **Long-term P2P resilience:** v0.1.3 repaired intermittent first-boot seed discovery. Windows CI validated two independent clean first boots (height 1239 with 1 peer each), but continued availability of public seeds and decentralized peer diversity are not guaranteed.
 5. Reproducible releases, signing, independent external security review and sustained long-running peer availability.
 6. Remaining Monero-derived legacy CLI strings and unrelated inherited build pipelines.
 
@@ -40,3 +40,14 @@ The [official v0.1.2 release](https://github.com/ati1993de/vmrx-core/releases/ta
 **Standalone Windows bootstrap verified (25 October 2026):** The [additional CI test](../.github/workflows/standalone-bootstrap-windows.yml) downloaded the **unaltered official v0.1.2 Windows ZIP**, verified SHA-256 and started `vmrxd.exe` with a clean database **without any explicit peer arguments**. It connected to **2 VMRX peers**, synchronized to **height 1221** and checked six historical hashes (heights 0, 1, 2, 10, 100, 1193). A second independent [failing first-boot run](https://github.com/ati1993de/vmrx-core/actions/runs/40184857431) stayed at height 1 with 0 peers for five minutes, despite a successful transient handshake to `31.70.81.5:29780` and an unreachable alternate peer. Therefore automatic discovery is **intermittent in official v0.1.2**; a single successful run does not demonstrate reliability. [Successful CI run](https://github.com/ati1993de/vmrx-core/actions/runs/40185038433) · [Windows troubleshooting](WINDOWS_STANDALONE_BOOTSTRAP.md).
 
 Founder wallet recovery, external transfer/spendability, and comprehensive independent security review remain unverified.
+
+
+## Release update: VMRX Core v0.1.3 (25 October 2026)
+
+**Latest stable Core:** [v0.1.3](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3), providing new, SHA256-verified Windows and Linux node archives. The original v0.1.2 installer-less Core could sometimes stay at height 1 with zero peers after a clean first boot, even after successful temporary P2P seed handshakes. Its candidate fix initially failed because it used `command_line::has_arg` on a defaulted vector option. **v0.1.3** uses `command_line::is_arg_defaulted` and establishes persistent priority connections to the existing VMRX seed candidates only when no explicit peer options are given on normal online mainnet starts.
+
+**Release evidence:** [Final Windows Core CI](https://github.com/ati1993de/vmrx-core/actions/runs/40187138005) compiled the genuine v0.1.3 Windows daemon, checked its embedded official Windows icon, matched original block 1 and six historical hashes, synchronized with real VMRX P2P through height 1238, and subsequently passed **two fresh bootstraps with no user-supplied peers**, each reaching height **1239** and one peer. [Final Linux Core CI](https://github.com/ati1993de/vmrx-core/actions/runs/40187138034) passed a fresh build and mainnet-chain validation. [Release publishing workflow](https://github.com/ati1993de/vmrx-core/actions/runs/40188394739) completed successfully with verified archive checksums.
+
+**GUI version caveat:** [Node & Miner v0.1.2](https://github.com/ati1993de/vmrx-node-miner/releases/tag/v0.1.2) still includes the exact v0.1.2 Windows Core. Its GUI configures a preferred peer, so it is not automatically updated or broken by releasing v0.1.3 separately. Rebuild and test the GUI bundle separately before making it claim to contain Core v0.1.3.
+
+This maintenance release changes no genesis, fork rules, historical founder premine, wallet seed format, transaction rules or reward schedule. Founder mnemonic recovery, independently confirmed transfers and external security audit remain unverified.
