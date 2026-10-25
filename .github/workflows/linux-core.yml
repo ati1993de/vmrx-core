@@ -70,7 +70,7 @@ jobs:
           cmake --build build-linux-release --target daemon --parallel 2
           test -x build-linux-release/bin/vmrxd
           build-linux-release/bin/vmrxd --version | tee linux-core-version.txt
-          grep -q 'VMRX Core v0.1.2' linux-core-version.txt
+          grep -q 'VMRX Core v0.1.3' linux-core-version.txt
       - name: Verify real full-mainnet block acceptance and historical chain hash
         shell: bash
         timeout-minutes: 14
@@ -88,7 +88,7 @@ jobs:
           install -m 0755 build-linux-release/bin/vmrxd dist/linux/vmrxd
           cp LICENSE dist/linux/LICENSE
           cat > dist/linux/README-LINUX.txt <<'EOF'
-          VMRX Core v0.1.2 — independent RandomX mainnet daemon
+          VMRX Core v0.1.3 — independent RandomX mainnet daemon
           Native Linux x86_64 binary: vmrxd.
           Compiled from the repository source in this CI run; unlike v0.1.1
           this is NOT a copy of the old RC2/Linux binary.
@@ -103,27 +103,27 @@ jobs:
           external transfers, full tip consensus and independent audit are not
           established by the CI test. Monero license attribution is retained.
           EOF
-          tar -C dist/linux -czf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz .
-          (cd dist && sha256sum VMRX-Core-linux-x86_64-v0.1.2.tar.gz > SHA256SUMS)
-          tar -tzf dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+          tar -C dist/linux -czf dist/VMRX-Core-linux-x86_64-v0.1.3.tar.gz .
+          (cd dist && sha256sum VMRX-Core-linux-x86_64-v0.1.3.tar.gz > SHA256SUMS)
+          tar -tzf dist/VMRX-Core-linux-x86_64-v0.1.3.tar.gz
           (cd dist && sha256sum -c SHA256SUMS)
           ls -lh dist
       - name: Upload live sync logs on failure for diagnosis
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: vmrx-linux-v012-sync-diagnostics
+          name: vmrx-linux-v013-sync-diagnostics
           path: |
             buildlogs/
             linux-core-version.txt
           if-no-files-found: ignore
           retention-days: 14
-      - name: Upload newly built Linux v0.1.2 distribution artifact
+      - name: Upload newly built Linux v0.1.3 distribution artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vmrx-core-linux-v012
+          name: vmrx-core-linux-v013
           path: |
-            dist/VMRX-Core-linux-x86_64-v0.1.2.tar.gz
+            dist/VMRX-Core-linux-x86_64-v0.1.3.tar.gz
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
