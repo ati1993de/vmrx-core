@@ -17,19 +17,42 @@ VMRX is an independent chain with its own genesis, network ID, address prefixes 
 | Coin | VargaMesh RX / VMRX |
 | Proof of work | RandomX; Monero-derived hard fork 16 configuration |
 | Block target | 120 seconds |
+| Normal block subsidy | Decreasing, supply-dependent (not a fixed 0.6 VMRX) |
+| Historical block 1 normal subsidy | 35.184304979968 VMRX |
+| Historical block 1 total coinbase | 200,035.184304979968 VMRX, including 200,000 VMRX founder allocation |
+| Monetary precision | 12 decimal places (1 VMRX = 10^12 atomic units) |
 | P2P | 29780/TCP |
 | Daemon RPC | 29781/TCP (restrict to localhost) |
 | Genesis hash | `405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4` |
 | Historic block 1 | `79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293` |
 | Founder allocation | **200,000 VMRX in block 1 (PREMINE)** |
 | Maturity for coinbase | 60 blocks, according to current fork settings |
-| Tail emission | 0.6 VMRX / target block |
+| Tail emission | **0.6 VMRX per target block only once the declining normal subsidy reaches its floor** |
 | Fixed maximum supply | **None** because of tail emission |
 | Code origin | Monero 0.18.5.4 fork with upstream notices retained |
 
 ### Transparent premine disclosure
 
-The first block distributed **200,000 VMRX to the founder**. It is not a zero-premine fair launch. See [Founder Allocation](docs/FOUNDER_ALLOCATION.md). Tail emission means there is no fixed supply cap.
+Mainnet block **1** allocated **200,000 VMRX to the founder**, **in addition to** the normal subsidy of **35.184304979968 VMRX**. Its total historical coinbase reward is therefore **200,035.184304979968 VMRX**. This is a premine, not a zero-premine/fair launch. The Core accepts this exceptional allocation **only for the exact historical block 1**, validated by its recorded block and miner-transaction hashes; it is not a recurring reward rule. See [Founder Allocation](docs/FOUNDER_ALLOCATION.md).
+
+### Block rewards and emission — important clarification
+
+**0.6 VMRX is NOT the current fixed block reward.** VMRX uses a Monero-derived, *continuously decreasing* base subsidy tied to total coins already generated; there are **no scheduled Bitcoin-style halvings**. The 200,000 VMRX founder allocation is counted in cumulative emission and affects subsequent calculated subsidies.
+
+With the current 120-second target and HF16 consensus, the *unpenalized base subsidy* is:
+
+```text
+atomic_units = max(((2^64 - 1) - already_generated_coins) >> 19, 600000000000)
+VMRX         = atomic_units / 1000000000000
+```
+
+- **Historical block 1:** 35.184304979968 VMRX ordinary subsidy **plus** 200,000 VMRX founder allocation.
+- **Block 2 formula example:** 34.802768144669 VMRX unpenalized base subsidy *assuming no other changes to the recorded cumulative coin issuance*. This is derived from the verified block-1 emission, **not** a live blockchain/RPC measurement.
+- **Later blocks:** the normal subsidy continues to decline as total generated coins increase. A block-weight penalty can reduce a miner's subsidy, while transaction fees may increase the total coinbase amount; **actual block rewards must be read from that block's header/coinbase**.
+- **Tail phase:** 0.6 VMRX per normal 120-second target block is the lower bound after declining emission reaches it, **not** the beginning-of-chain reward.
+- **No fixed cap:** continued tail emission means there is no strict maximum coin supply. Coinbase funds mature after **60 blocks**.
+
+The exact consensus implementation is in [`cryptonote_basic_impl.cpp`](src/cryptonote_basic/cryptonote_basic_impl.cpp), [`cryptonote_config.h`](src/cryptonote_config.h) and the [historical founder-block validation](src/cryptonote_core/blockchain.cpp). See [detailed emission specification](docs/EMISSION.md).
 
 ## Installation / releases
 
