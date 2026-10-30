@@ -26,10 +26,10 @@ normal_base_reward_atomic =
     max(((2^64 - 1) - already_generated_coins) >> 19,
         600000000000)
 
-normal_base_reward_vmxr = normal_base_reward_atomic / 1000000000000
+normal_base_reward_vmrx = normal_base_reward_atomic / 1000000000000
 ```
 
-The last variable name here refers to **VMRX**, not VMESH. The `already_generated_coins` quantity is maintained by the blockchain using the cumulative base reward, including the historical founder block's additional allocation. At excessive block weights the Core can reduce the base reward; transaction fees are added to the miner transaction, so **coinbase total is not always identical to the base subsidy**.
+The `already_generated_coins` quantity is maintained by the blockchain using the cumulative base reward, including the historical founder block's additional allocation. At excessive block weights the Core can reduce the base reward; transaction fees are added to the miner transaction, so **coinbase total is not always identical to the base subsidy**.
 
 ## Historical block examples
 
