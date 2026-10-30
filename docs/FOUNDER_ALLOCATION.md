@@ -2,7 +2,11 @@
 
 **VMRX is NOT premine-free or fair-launch.** The modified RC1/RC2 consensus rules allocate **200,000.000000000000 VMRX at mainnet block 1** to the founder's existing wallet. A normal mining subsidy was additionally created in that block. The operator has stated that this initial allocation is intentional.
 
-The current software derives an additional mining subsidy under Monero-style emission rules and provides a **0.6 VMRX tail reward per block** in the tail phase. There is **no strict fixed maximum supply**.
+The **historical mainnet block-1 coinbase** consists of exactly **200,000.000000000000 VMRX founder allocation + 35.184304979968 VMRX normal mining subsidy = 200,035.184304979968 VMRX total**. The Core explicitly validates the original block and miner-transaction hashes and both outputs before allowing that one-time exception. It cannot be repeated for another block by ordinary mining.
+
+**The starting block subsidy is NOT 0.6 VMRX.** VMRX uses a supply-dependent, decreasing Monero-derived emission curve. For illustration, after the historical founder block, the *unpenalized base subsidy calculated for block 2* is **34.802768144669 VMRX**, assuming the cumulative generated amount defined by the fixed historical block. Block-weight penalties and transaction fees can affect the actual reported coinbase. **0.6 VMRX is the later tail-emission minimum**, not a fixed reward from launch. There is **no fixed maximum supply** because the tail subsidy continues; no scheduled halvings are defined.
+
+For the formula, 12-decimal precision, coinbase maturity (60 blocks), and authoritative code links, see [VMRX emission specification](EMISSION.md).
 
 ## Status of tests
 
