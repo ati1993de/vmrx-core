@@ -10,6 +10,15 @@ Values in this file were extracted from the operator's VMRX source snippets and 
 
 Mainnet block interval target: **120 s**. Algorithm: **RandomX**, HF16. Consensus genesis hash: `405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4`. RC2 public mainnet block-1 hash: `79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293`.
 
+## Mining and monetary parameters (consensus source)
+
+- Normal block subsidy: **supply-dependent and decreasing**, initially around **35 VMRX**, rather than 0.6 VMRX from launch.
+- Historic mainnet block 1: **35.184304979968 VMRX** regular subsidy plus **200,000 VMRX** one-time founder premine; total coinbase **200,035.184304979968 VMRX**.
+- Tail emission: **0.6 VMRX per 120-second target block**, only after the declining base subsidy reaches the tail floor.
+- Supply: **no fixed maximum**; **no scheduled Bitcoin-style halvings**.
+- Monetary precision: **12 decimals**; miner coinbase maturity: **60 blocks**.
+- Reference: [VMRX emission calculation and source verification](EMISSION.md).
+
 ## Operator-observed test outcomes
 
 - First RC2 production node on Windrose had 0 outgoing connections owing to intentionally isolated `--add-exclusive-node 127.0.0.1:1`; inbound P2P remained functional.
